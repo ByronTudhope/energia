@@ -19,6 +19,7 @@ import (
 	"github.com/mindworks-software/energia/pkg/axpert"
 	"github.com/mindworks-software/energia/pkg/connector"
 	"github.com/mindworks-software/energia/pkg/pylontech"
+	"github.com/mindworks-software/energia/pkg/schedule"
 )
 
 var timerInterval int
@@ -36,6 +37,8 @@ var inverterTopic string
 var batteryPath string
 var batteryBaud int
 var batteryTopic string
+
+var currentSchedule *schedule.Schedule
 
 type messageData struct {
 	Timestamp   time.Time
@@ -136,7 +139,7 @@ func main() {
 	ts := make([]*time.Ticker, len(queries))
 
 	for i, q := range queries {
-		ts[i] = schedule(q.f, q.interval, q.cc, client)
+		ts[i] = scheduleQuery(q.f, q.interval, q.cc, client)
 	}
 
 	client.Subscribe("inverter/cmd/setOutputSourcePriority", 1, messageReceiver)
@@ -154,7 +157,7 @@ func main() {
 	fmt.Println("exiting")
 }
 
-func schedule(f queryFunc, interval time.Duration, ucc chan connector.Connector, client mqtt.Client) *time.Ticker {
+func scheduleQuery(f queryFunc, interval time.Duration, ucc chan connector.Connector, client mqtt.Client) *time.Ticker {
 	ticker := time.NewTicker(interval)
 	go func() {
 		for t := range ticker.C {
@@ -331,6 +334,13 @@ func messageReceiver(client mqtt.Client, msg mqtt.Message) {
 			err = axpert.SetOutputSourcePriority(uc, axpert.OutputSourcePriority(priority))
 			if err != nil {
 				fmt.Println("Failed sending command ", err)
+				return
+			}
+
+		case schedule.ScheduleTopic:
+			currentSchedule, err := schedule.CreateSchedule(msg, ucc)
+			if err != nil {
+				fmt.Println("Failed creating schedule")
 				return
 			}
 
