@@ -343,7 +343,7 @@ func messageReceiver(client mqtt.Client, msg mqtt.Message) {
 			fmt.Printf("%s\n", msg.Topic())
 			_, err := schedule.CreateSchedule(msg, ucc)
 			if err != nil {
-				fmt.Println("Failed creating schedule")
+				fmt.Println("Failed creating schedule", err)
 				return
 			}
 
