@@ -60,23 +60,25 @@ func umarshalSchedule(msg []byte) (*Schedule, error) {
 }
 
 func startTicker() {
-	tck := time.NewTicker(10 * time.Minute)
-	for range tck.C {
-		go func() {
-			err := setToCurrent(s, ucc)
+    fmt.Println("Starting ticker")
+	tck := time.NewTicker(2 * time.Minute)
+	go func(sch *Schedule, uchan chan connector.Connector) {
+    	for range tck.C {
+            fmt.Println("Tick")
+			err := setToCurrent(sch, uchan)
 			if err != nil {
 				fmt.Println(err)
 			}
+            fmt.Println("Tock")
+		}
 
-		}()
-
-	}
+	}(s, ucc)
 }
 
 func calculateOffset() time.Duration {
 
 	t := time.Now()
-	i := t.Minute() % 10
+	i := t.Minute() % 2
 
 	return time.Duration(i) * time.Minute
 }
