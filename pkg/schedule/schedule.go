@@ -27,13 +27,13 @@ const (
 	EnableTopic   = "inverter/cmd/enableSchedule"
 )
 
-var s Schedule
+var s *Schedule
 var ucc chan connector.Connector
 
 func CreateSchedule(msg mqtt.Message, ucchan chan connector.Connector) (*Schedule, error) {
-	err := json.Unmarshal(msg.Payload(), &s)
+	s, err := umarshalSchedule(msg.Payload())
 	if err != nil {
-		return nil, err
+		return s, err
 	}
 
 	ucc = ucchan
@@ -47,6 +47,15 @@ func CreateSchedule(msg mqtt.Message, ucchan chan connector.Connector) (*Schedul
 	// when timer ticks, start ticker for 10 min intervals
 	time.AfterFunc(calculateOffset(), startTicker)
 
+	return s, nil
+}
+
+func umarshalSchedule(msg []byte) (*Schedule, error) {
+	var s Schedule
+	err := json.Unmarshal(msg, &s)
+	if err != nil {
+		return nil, err
+	}
 	return &s, nil
 }
 
@@ -72,7 +81,7 @@ func calculateOffset() time.Duration {
 	return time.Duration(i) * time.Minute
 }
 
-func setToCurrent(s Schedule, ucc chan connector.Connector) error {
+func setToCurrent(s *Schedule, ucc chan connector.Connector) error {
 	os := s.DefaultOutputSource
 
 	now := time.Now()
