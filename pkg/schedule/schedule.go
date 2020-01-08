@@ -27,18 +27,19 @@ const (
 	EnableTopic   = "inverter/cmd/enableSchedule"
 )
 
-var s *Schedule
+var sch *Schedule
 var ucc chan connector.Connector
 
 func CreateSchedule(msg mqtt.Message, ucchan chan connector.Connector) (*Schedule, error) {
 	s, err := umarshalSchedule(msg.Payload())
 	if err != nil {
-		return s, err
+		return nil, err
 	}
 
+	sch = s
 	ucc = ucchan
 	// Set output to current from schedule
-	err = setToCurrent(s, ucc)
+	err = setToCurrent(sch, ucc)
 	if err != nil {
 		return nil, err
 	}
@@ -47,7 +48,7 @@ func CreateSchedule(msg mqtt.Message, ucchan chan connector.Connector) (*Schedul
 	// when timer ticks, start ticker for 10 min intervals
 	time.AfterFunc(calculateOffset(), startTicker)
 
-	return s, nil
+	return sch, nil
 }
 
 func umarshalSchedule(msg []byte) (*Schedule, error) {
@@ -60,19 +61,19 @@ func umarshalSchedule(msg []byte) (*Schedule, error) {
 }
 
 func startTicker() {
-    fmt.Println("Starting ticker")
+	fmt.Println("Starting ticker")
 	tck := time.NewTicker(2 * time.Minute)
 	go func(sch *Schedule, uchan chan connector.Connector) {
-    	for range tck.C {
-            fmt.Println("Tick")
+		for range tck.C {
+			fmt.Println("Tick")
 			err := setToCurrent(sch, uchan)
 			if err != nil {
 				fmt.Println(err)
 			}
-            fmt.Println("Tock")
+			fmt.Println("Tock")
 		}
 
-	}(s, ucc)
+	}(sch, ucc)
 }
 
 func calculateOffset() time.Duration {
