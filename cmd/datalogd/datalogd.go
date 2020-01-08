@@ -38,8 +38,6 @@ var batteryPath string
 var batteryBaud int
 var batteryTopic string
 
-var currentSchedule *schedule.Schedule
-
 type messageData struct {
 	Timestamp   time.Time
 	MessageType string
@@ -142,7 +140,11 @@ func main() {
 		ts[i] = scheduleQuery(q.f, q.interval, q.cc, client)
 	}
 
-	client.Subscribe("inverter/cmd/setOutputSourcePriority", 1, messageReceiver)
+	topics := make(map[string]byte, 3)
+	topics[schedule.ScheduleTopic] = 1
+	topics[schedule.OverrideTopic] = 1
+	topics[schedule.EnableTopic] = 1
+	client.SubscribeMultiple(topics, messageReceiver)
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGINT, syscall.SIGTERM)
@@ -318,7 +320,7 @@ func messageReceiver(client mqtt.Client, msg mqtt.Message) {
 
 	go func() {
 		switch msg.Topic() {
-		case "inverter/cmd/setOutputSourcePriority":
+		case schedule.OverrideTopic:
 			fmt.Printf("%s\n", msg.Topic())
 			msg.Topic()
 			msg.Payload()
@@ -338,14 +340,18 @@ func messageReceiver(client mqtt.Client, msg mqtt.Message) {
 			}
 
 		case schedule.ScheduleTopic:
-			currentSchedule, err := schedule.CreateSchedule(msg, ucc)
+			fmt.Printf("%s\n", msg.Topic())
+			_, err := schedule.CreateSchedule(msg, ucc)
 			if err != nil {
 				fmt.Println("Failed creating schedule")
 				return
 			}
 
+		case schedule.EnableTopic:
+			fmt.Printf("%s\n", msg.Topic())
+
 		default:
-			fmt.Printf("%s", msg.Topic())
+			fmt.Printf("%s\n", msg.Topic())
 		}
 	}()
 }
