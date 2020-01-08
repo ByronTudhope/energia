@@ -25,6 +25,8 @@ const (
 	ScheduleTopic = "inverter/cmd/schedule"
 	OverrideTopic = "inverter/cmd/override"
 	EnableTopic   = "inverter/cmd/enableSchedule"
+
+	tickInterval = 10
 )
 
 var sch *Schedule
@@ -62,7 +64,7 @@ func umarshalSchedule(msg []byte) (*Schedule, error) {
 
 func startTicker() {
 	fmt.Println("Starting ticker")
-	tck := time.NewTicker(2 * time.Minute)
+	tck := time.NewTicker(tickInterval * time.Minute)
 	go func(sch *Schedule, uchan chan connector.Connector) {
 		for range tck.C {
 			fmt.Println("Tick")
@@ -79,7 +81,7 @@ func startTicker() {
 func calculateOffset() time.Duration {
 
 	t := time.Now()
-	i := t.Minute() % 2
+	i := t.Minute() % tickInterval
 
 	return time.Duration(i) * time.Minute
 }
