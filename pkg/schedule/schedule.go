@@ -2,6 +2,7 @@ package schedule
 
 import (
 	"encoding/json"
+	"fmt"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
@@ -26,16 +27,68 @@ const (
 	EnableTopic   = "inverter/cmd/enableSchedule"
 )
 
-func CreateSchedule(msg mqtt.Message, ucc chan connector.Connector) (*Schedule, error) {
-	var s Schedule
+var s Schedule
+var ucc chan connector.Connector
+
+func CreateSchedule(msg mqtt.Message, ucchan chan connector.Connector) (*Schedule, error) {
 	err := json.Unmarshal(msg.Payload(), &s)
 	if err != nil {
 		return nil, err
 	}
 
+	ucc = ucchan
 	// Set output to current from schedule
+	err = setToCurrent(s, ucc)
+	if err != nil {
+		return nil, err
+	}
+
 	// create  timer for now + (time to next clock 10 min interval)
 	// when timer ticks, start ticker for 10 min intervals
+	time.AfterFunc(calculateOffset(), startTicker)
 
 	return &s, nil
+}
+
+func startTicker() {
+	tck := time.NewTicker(10 * time.Minute)
+	for range tck.C {
+		go func() {
+			err := setToCurrent(s, ucc)
+			if err != nil {
+				fmt.Println(err)
+			}
+
+		}()
+
+	}
+}
+
+func calculateOffset() time.Duration {
+
+	t := time.Now()
+	i := t.Minute() % 10
+
+	return time.Duration(i) * time.Minute
+}
+
+func setToCurrent(s Schedule, ucc chan connector.Connector) error {
+	os := s.DefaultOutputSource
+
+	now := time.Now()
+	if len(s.Entries) > 0 {
+		for _, e := range s.Entries {
+			if now.After(e.Timestamp) {
+				os = e.OutputSource
+			} else if e.Timestamp.After(now) {
+				break
+			}
+		}
+	}
+	uc := <-ucc
+	defer func() { ucc <- uc }()
+
+	err := axpert.SetOutputSourcePriority(uc, os)
+
+	return err
 }
