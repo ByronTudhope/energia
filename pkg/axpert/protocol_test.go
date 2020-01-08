@@ -38,7 +38,7 @@ func TestParseRatingInfo(t *testing.T) {
 		ACOutputRatingActivePower: 4000, BatteryRatingVoltage: 48, BatteryRechargeVoltage: 48,
 		BatteryUnderVoltage: 47.5, BatteryBulkVoltage: 53.2, BatteryFloatVoltage: 51.9, BatteryType: User,
 		MaxACChargingCurrent: 30, MaxChargingCurrent: 120, InputVoltageRange: Appliance,
-		OutputSourcePriority: OutputUtilityFirst, ChargerSourcePriority: ChargerSolarFirst, ParallelMaxNumber: 9,
+		OutputSourcePriority: Utility, ChargerSourcePriority: ChargerSolarFirst, ParallelMaxNumber: 9,
 		MachineType: OffGrid, Topology: Transfomerless, OutputMode: SingleMachine, BatteryRedischargeVoltage: 51,
 		ParallelPVOK: AnyInverterConnected, PVPowerBalance: InputPowerIsChargedPowerPlusLoadPower}
 

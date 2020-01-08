@@ -3,11 +3,11 @@ package axpert
 import (
 	"bytes"
 	"fmt"
+	"github.com/howeyc/crc16"
 	"log"
 	"strconv"
 	"strings"
 	"time"
-	"github.com/howeyc/crc16"
 
 	"github.com/mindworks-software/energia/pkg/connector"
 )
@@ -177,9 +177,9 @@ const (
 type OutputSourcePriority uint8
 
 const (
-	OutputUtilityFirst OutputSourcePriority = iota
-	OutputSolarFirst
-	OutputSBUFirst
+	Utility OutputSourcePriority = iota
+	SUB
+	SBU
 )
 
 //go:generate enumer -type=ChargerSourcePriority -json
@@ -732,7 +732,7 @@ func sendCommand(c connector.Connector, command string) error {
 }
 
 func sendRequest(c connector.Connector, req string) (resp string, err error) {
-	defer timeTrack(time.Now(), "timing : " + req)
+	defer timeTrack(time.Now(), "timing : "+req)
 	log.Println("Sending request", req)
 	reqBytes := []byte(req)
 	reqBytes = append(reqBytes, crc(reqBytes)...)
