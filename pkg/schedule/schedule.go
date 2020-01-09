@@ -59,8 +59,8 @@ func umarshalSchedule(msg []byte) (*Schedule, error) {
 	if err != nil {
 		return nil, err
 	}
-	for _, entry := range s.Entries {
-		entry.timeOnly, err = time.Parse("15:04:05", entry.Timestamp)
+	for i := range s.Entries {
+		s.Entries[i].timeOnly, err = time.Parse("15:04:05", s.Entries[i].Timestamp)
 		if err != nil {
 			return nil, err
 		}
