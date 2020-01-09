@@ -12,10 +12,10 @@ import (
 )
 
 type Entry struct {
-	Timestamp    time.Time
+	Timestamp    string
 	OutputSource axpert.OutputSourcePriority
+	timeOnly     time.Time
 }
-
 type Schedule struct {
 	DefaultOutputSource axpert.OutputSourcePriority
 	Entries             []Entry
@@ -36,6 +36,10 @@ func CreateSchedule(msg mqtt.Message, ucchan chan connector.Connector) (*Schedul
 	s, err := umarshalSchedule(msg.Payload())
 	if err != nil {
 		return nil, err
+	}
+
+	for _, entry := range s.Entries {
+		entry.timeOnly, _ = time.Parse("15:04:05", entry.Timestamp)
 	}
 
 	sch = s
@@ -89,12 +93,18 @@ func calculateOffset() time.Duration {
 func setToCurrent(s *Schedule, ucc chan connector.Connector) error {
 	os := s.DefaultOutputSource
 
-	now := time.Now()
+	now, err := timeOnly(time.Now())
+
+	if err != nil {
+		fmt.Println("Failed to parse time only ", err)
+		return err
+	}
+
 	if len(s.Entries) > 0 {
 		for _, e := range s.Entries {
-			if now.After(e.Timestamp) {
+			if now.After(e.timeOnly) {
 				os = e.OutputSource
-			} else if e.Timestamp.After(now) {
+			} else if e.timeOnly.After(now) {
 				break
 			}
 		}
@@ -102,7 +112,12 @@ func setToCurrent(s *Schedule, ucc chan connector.Connector) error {
 	uc := <-ucc
 	defer func() { ucc <- uc }()
 
-	err := axpert.SetOutputSourcePriority(uc, os)
+	err = axpert.SetOutputSourcePriority(uc, os)
 
 	return err
+}
+func timeOnly(t time.Time) (time.Time, error) {
+
+	return time.Parse("15:04:05", t.Format("15:04:05"))
+
 }
