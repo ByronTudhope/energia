@@ -4,6 +4,7 @@ import (
 	"reflect"
 	"testing"
 	"time"
+	_ "time"
 
 	"github.com/mindworks-software/energia/pkg/axpert"
 )
@@ -13,10 +14,10 @@ func Test_umarshalSchedule(t *testing.T) {
 		msg []byte
 	}
 
-	testOne := "{\"DefaultOutputSource\": \"Utility\",\n  \"Entries\": [\n    {\n      \"Timestamp\": \"2020-01-08T06:20:00+02:00\",\n      \"OutputSource\": \"SUB\"\n    }\n  ]\n}"
+	testOne := "{\"DefaultOutputSource\": \"Utility\",\n  \"Entries\": [\n    {\n      \"Timestamp\": \"06:20:00\",\n      \"OutputSource\": \"SUB\"\n    }\n  ]\n}"
 
-	ts, _ := time.Parse(time.RFC3339, "2020-01-08T06:20:00+02:00")
-	testOneSch := &Schedule{DefaultOutputSource: axpert.Utility, Entries: []Entry{{Timestamp: ts, OutputSource: axpert.SUB}}}
+	ts, _ := time.Parse("15:04:05", "06:20:00")
+	testOneSch := &Schedule{DefaultOutputSource: axpert.Utility, Entries: []Entry{{Timestamp: "06:20:00", OutputSource: axpert.SUB, timeOnly: ts}}}
 
 	tests := []struct {
 		name    string

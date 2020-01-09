@@ -38,10 +38,6 @@ func CreateSchedule(msg mqtt.Message, ucchan chan connector.Connector) (*Schedul
 		return nil, err
 	}
 
-	for _, entry := range s.Entries {
-		entry.timeOnly, _ = time.Parse("15:04:05", entry.Timestamp)
-	}
-
 	sch = s
 	ucc = ucchan
 	// Set output to current from schedule
@@ -63,6 +59,13 @@ func umarshalSchedule(msg []byte) (*Schedule, error) {
 	if err != nil {
 		return nil, err
 	}
+	for _, entry := range s.Entries {
+		entry.timeOnly, err = time.Parse("15:04:05", entry.Timestamp)
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	return &s, nil
 }
 
