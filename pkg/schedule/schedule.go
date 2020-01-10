@@ -81,12 +81,16 @@ func startTicker() {
 	tck = time.NewTicker(time.Duration(tickInterval) * time.Minute)
 	go func() {
 		for range tck.C {
-			fmt.Println("Tick")
-			err := setToCurrent(sch, ucc)
-			if err != nil {
-				fmt.Println(err)
+			if isEnabled {
+				fmt.Println("Tick")
+				err := setToCurrent(sch, ucc)
+				if err != nil {
+					fmt.Println(err)
+				}
+				fmt.Println("Tock")
+			} else {
+				fmt.Println("Schedule is disabled")
 			}
-			fmt.Println("Tock")
 		}
 
 	}()
