@@ -30,15 +30,18 @@ var mqttClientId string
 var mqttUsername string
 var mqttPassword string
 
+var inverterEnabled bool
 var inverterPath string
 var inverterCount int
 var inverterTopic string
 
+var batteryEnabled bool
 var batteryPath string
 var batteryBaud int
 var batteryTopic string
 
 var scheduleTickInterval int
+var scheduleEnabled bool
 
 type messageData struct {
 	Timestamp   time.Time
@@ -83,7 +86,7 @@ func main() {
 	var sc connector.Connector
 	var scc chan connector.Connector
 
-	if viper.IsSet("battery.path") {
+	if batteryEnabled {
 
 		serialConfig := serial.Config{
 			Address:  batteryPath,
@@ -132,7 +135,7 @@ func main() {
 		{deviceRating, ucc, 30 * time.Second},
 	}
 
-	if viper.IsSet("battery.path") {
+	if batteryEnabled {
 		queries = append(queries, query{batteryStatus, scc, 10 * time.Second})
 	}
 
@@ -343,7 +346,7 @@ func messageReceiver(client mqtt.Client, msg mqtt.Message) {
 
 		case schedule.ScheduleTopic:
 			fmt.Printf("%s\n", msg.Topic())
-			_, err := schedule.CreateSchedule(msg, ucc, scheduleTickInterval)
+			_, err := schedule.CreateSchedule(msg, ucc, scheduleTickInterval, scheduleEnabled)
 			if err != nil {
 				fmt.Println("Failed creating schedule", err)
 				return
@@ -405,12 +408,15 @@ func initConfig() error {
 	mqttUsername = viper.GetString("mqtt.username")
 	mqttPassword = viper.GetString("mqtt.password")
 	mqttClientId = viper.GetString("mqtt.clientId")
+	inverterEnabled = viper.GetBool("inverter.enabled")
 	inverterPath = viper.GetString("inverter.path")
 	inverterCount = viper.GetInt("inverter.count")
 	inverterTopic = viper.GetString("inverter.topic")
+	batteryEnabled = viper.GetBool("battery.enabled")
 	batteryPath = viper.GetString("battery.path")
 	batteryBaud = viper.GetInt("battery.baud")
 	batteryTopic = viper.GetString("battery.topic")
+	scheduleEnabled = viper.GetBool("schedule.enabled")
 	scheduleTickInterval = viper.GetInt("schedule.tickInterval")
 
 	return nil

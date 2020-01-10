@@ -7,14 +7,17 @@ mqtt:
   clientId: datalogd-ng
 
 inverter:
+  enabled: true
   path: /dev/hidraw0
   count: 1
   topic: datalogd-ng/inverter
 
 battery:
+  enabled: true
   path: /dev/ttyUSB0
   baud: 1200
   topic: datalogd-ng/battery
 
 schedule:
+  enabled: true
   tickInterval: 10

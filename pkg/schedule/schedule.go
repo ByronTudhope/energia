@@ -32,8 +32,9 @@ var ucc chan connector.Connector
 var tck *time.Ticker
 
 var tickInterval int
+var isEnabled bool
 
-func CreateSchedule(msg mqtt.Message, ucchan chan connector.Connector, interval int) (*Schedule, error) {
+func CreateSchedule(msg mqtt.Message, ucchan chan connector.Connector, interval int, enabled bool) (*Schedule, error) {
 	s, err := unmarshalSchedule(msg.Payload())
 	if err != nil {
 		return nil, err
@@ -42,6 +43,7 @@ func CreateSchedule(msg mqtt.Message, ucchan chan connector.Connector, interval 
 	sch = s
 	ucc = ucchan
 	tickInterval = interval
+	isEnabled = enabled
 	// Set output to current from schedule
 	err = setToCurrent(sch, ucc)
 	if err != nil {
