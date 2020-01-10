@@ -88,13 +88,16 @@ func startTicker() {
 		}
 
 	}()
+	err := setToCurrent(sch, ucc)
+	if err != nil {
+		fmt.Println("Failed setrting current", err)
+	}
 }
 
 func calculateOffset() time.Duration {
 
 	t := time.Now()
-	i := t.Minute() % tickInterval
-
+	i := tickInterval - (t.Minute() % tickInterval)
 	return time.Duration(i) * time.Minute
 }
 
