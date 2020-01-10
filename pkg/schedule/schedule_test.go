@@ -33,13 +33,13 @@ func Test_umarshalSchedule(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got, err := umarshalSchedule(tt.args.msg)
+			got, err := unmarshalSchedule(tt.args.msg)
 			if (err != nil) != tt.wantErr {
-				t.Errorf("umarshalSchedule() error = %v, wantErr %v", err, tt.wantErr)
+				t.Errorf("unmarshalSchedule() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
 			if !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("umarshalSchedule() got = %v, want %v", got, tt.want)
+				t.Errorf("unmarshalSchedule() got = %v, want %v", got, tt.want)
 			}
 		})
 	}

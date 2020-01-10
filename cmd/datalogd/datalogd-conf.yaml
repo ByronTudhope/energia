@@ -15,3 +15,6 @@ battery:
   path: /dev/ttyUSB0
   baud: 1200
   topic: datalogd-ng/battery
+
+schedule:
+  tickInterval: 10

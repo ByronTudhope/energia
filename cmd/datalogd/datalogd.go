@@ -38,6 +38,8 @@ var batteryPath string
 var batteryBaud int
 var batteryTopic string
 
+var scheduleTickInterval int
+
 type messageData struct {
 	Timestamp   time.Time
 	MessageType string
@@ -341,7 +343,7 @@ func messageReceiver(client mqtt.Client, msg mqtt.Message) {
 
 		case schedule.ScheduleTopic:
 			fmt.Printf("%s\n", msg.Topic())
-			_, err := schedule.CreateSchedule(msg, ucc)
+			_, err := schedule.CreateSchedule(msg, ucc, scheduleTickInterval)
 			if err != nil {
 				fmt.Println("Failed creating schedule", err)
 				return
@@ -377,6 +379,7 @@ func initConfig() error {
 	viper.SetDefault("inverter.topic", "datalogd/inverter")
 	viper.SetDefault("battery.baud", 1200)
 	viper.SetDefault("battery.topic", "datalogd/battery")
+	viper.SetDefault("schedule.tickInterval", 10)
 
 	viper.SetEnvPrefix("dlog")
 	viper.SetEnvKeyReplacer(strings.NewReplacer(".", "_"))
@@ -408,6 +411,7 @@ func initConfig() error {
 	batteryPath = viper.GetString("battery.path")
 	batteryBaud = viper.GetInt("battery.baud")
 	batteryTopic = viper.GetString("battery.topic")
+	scheduleTickInterval = viper.GetInt("schedule.tickInterval")
 
 	return nil
 }
