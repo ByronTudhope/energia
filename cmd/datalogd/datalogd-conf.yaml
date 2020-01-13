@@ -2,7 +2,7 @@ timer:
   interval: 10
 
 mqtt:
-  server: 10.147.20.10
+  server: localhost
   port: 1883
   clientId: datalogd-ng
 
