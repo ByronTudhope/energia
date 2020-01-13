@@ -60,6 +60,13 @@ func CreateSchedule(msg mqtt.Message, ucchan chan connector.Connector, interval 
 	return sch, nil
 }
 
+func Disable() {
+	isEnabled = false
+}
+func Enable() {
+	isEnabled = true
+}
+
 func unmarshalSchedule(msg []byte) (*Schedule, error) {
 	var s Schedule
 	err := json.Unmarshal(msg, &s)

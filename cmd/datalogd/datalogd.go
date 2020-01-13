@@ -337,7 +337,7 @@ func messageReceiver(client mqtt.Client, msg mqtt.Message) {
 				fmt.Println("Value conversion error", err)
 				return
 			}
-
+			schedule.Disable()
 			err = axpert.SetOutputSourcePriority(uc, axpert.OutputSourcePriority(priority))
 			if err != nil {
 				fmt.Println("Failed sending command ", err)
@@ -354,6 +354,17 @@ func messageReceiver(client mqtt.Client, msg mqtt.Message) {
 
 		case schedule.EnableTopic:
 			fmt.Printf("%s\n", msg.Topic())
+
+			isEnabled, err := strconv.ParseBool(string(msg.Payload()))
+			if err != nil {
+				fmt.Println("Failed to parse payload ", err)
+			}
+
+			if isEnabled {
+				schedule.Enable()
+			} else {
+				schedule.Disable()
+			}
 
 		default:
 			fmt.Printf("%s\n", msg.Topic())
