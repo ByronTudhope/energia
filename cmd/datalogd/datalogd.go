@@ -324,24 +324,24 @@ func sendMessage(data messageData, topic string, client mqtt.Client) error {
 func messageReceiver(client mqtt.Client, msg mqtt.Message) {
 
 	go func() {
+		payload := string(msg.Payload())
 		switch msg.Topic() {
 		case schedule.OverrideTopic:
-			fmt.Printf("%s\n", msg.Topic())
-			msg.Topic()
-			msg.Payload()
+			fmt.Printf("%s\n%s\n", msg.Topic(), msg.Payload())
 			uc := <-ucc
 
 			defer func() { ucc <- uc }()
-			priority, err := strconv.Atoi(string(msg.Payload()))
-			if err != nil {
-				fmt.Println("Value conversion error", err)
-				return
-			}
-			schedule.Disable()
-			err = axpert.SetOutputSourcePriority(uc, axpert.OutputSourcePriority(priority))
-			if err != nil {
-				fmt.Println("Failed sending command ", err)
-				return
+
+			if payload[0] == '{' {
+				// Handle json payload
+				fmt.Println("JSON coming soon to a queue near you")
+			} else {
+				outputSource, suspendDuration, err := parseOverride(string(msg.Payload()))
+				if err != nil {
+					fmt.Println("Failed to override schedule", err)
+				}
+				overrideOutputSource(outputSource, uc, suspendDuration)
+
 			}
 
 		case schedule.ScheduleTopic:
@@ -355,7 +355,7 @@ func messageReceiver(client mqtt.Client, msg mqtt.Message) {
 		case schedule.EnableTopic:
 			fmt.Printf("%s\n", msg.Topic())
 
-			isEnabled, err := strconv.ParseBool(string(msg.Payload()))
+			isEnabled, err := strconv.ParseBool(payload)
 			if err != nil {
 				fmt.Println("Failed to parse payload ", err)
 			}
@@ -370,6 +370,50 @@ func messageReceiver(client mqtt.Client, msg mqtt.Message) {
 			fmt.Printf("%s\n", msg.Topic())
 		}
 	}()
+}
+
+func overrideOutputSource(outputSource axpert.OutputSourcePriority, uc connector.Connector, suspendDuration time.Duration) {
+	schedule.Disable()
+	err := axpert.SetOutputSourcePriority(uc, outputSource)
+	if err != nil {
+		fmt.Println("Failed sending command ", err)
+	}
+
+	if suspendDuration > 0 {
+		fmt.Printf("Schedule will be restored in %d minutes", suspendDuration)
+		time.AfterFunc(suspendDuration, func() {
+			fmt.Println("Resuming regularly scheduled programming")
+			schedule.Enable()
+		})
+	}
+}
+
+func parseOverride(msg string) (axpert.OutputSourcePriority, time.Duration, error) {
+	parts := strings.Split(msg, ",")
+	params := make([]int, len(parts))
+	var err error
+	for i := range parts {
+		parts[i] = strings.TrimSpace(parts[i])
+		params[i], err = strconv.Atoi(parts[i])
+		if err != nil {
+			return 0, 0, err
+		}
+	}
+
+	outputSource := axpert.OutputSourcePriority(params[0])
+
+	switch len(parts) {
+	case 0:
+		return 0, 0, fmt.Errorf("invalid payload: blank")
+	case 1:
+		return outputSource, -1, nil
+	case 2:
+		fallthrough
+	default:
+		suspendDuration := time.Duration(params[1]) * time.Minute
+		return outputSource, suspendDuration, nil
+
+	}
 }
 
 func logConnect(_ mqtt.Client) {
