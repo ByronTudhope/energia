@@ -22,7 +22,9 @@ import (
 	"github.com/mindworks-software/energia/pkg/schedule"
 )
 
-var timerInterval int
+var timerRapid  time.Duration
+var timerNormal  time.Duration
+var timerPeriodic  time.Duration
 
 var mqttServer string
 var mqttPort int
@@ -127,16 +129,16 @@ func main() {
 	fmt.Println("Connected to mqtt")
 
 	queries := []query{
-		{deviceMode, ucc, 30 * time.Second},
-		{parallelDeviceInfo, ucc, 30 * time.Second},
-		{deviceGeneralStatus, ucc, 10 * time.Second},
-		{deviceFlagStatus, ucc, 30 * time.Second},
-		{warningStatus, ucc, 30 * time.Second},
-		{deviceRating, ucc, 30 * time.Second},
+		{deviceMode, ucc, timerPeriodic * time.Second},
+		{parallelDeviceInfo, ucc, timerRapid * time.Second},
+		{deviceGeneralStatus, ucc, timerRapid * time.Second},
+		{deviceFlagStatus, ucc, timerPeriodic * time.Second},
+		{warningStatus, ucc, timerNormal * time.Second},
+		{deviceRating, ucc, timerRapid * time.Second},
 	}
 
 	if batteryEnabled {
-		queries = append(queries, query{batteryStatus, scc, 10 * time.Second})
+		queries = append(queries, query{batteryStatus, scc, timerNormal * time.Second})
 	}
 
 	ts := make([]*time.Ticker, len(queries))
@@ -432,7 +434,9 @@ func initConfig() error {
 	viper.SetDefault("mqtt.server", "localhost")
 	viper.SetDefault("mqtt.port", 1883)
 	viper.SetDefault("mqtt.clientid", "datalogd")
-	viper.SetDefault("timer.interval", 30)
+	viper.SetDefault("timer.interval.rapid", 5)
+	viper.SetDefault("timer.interval.normal", 10)
+	viper.SetDefault("timer.interval.periodic", 30)
 	viper.SetDefault("inverter.count", 1)
 	viper.SetDefault("inverter.topic", "datalogd/inverter")
 	viper.SetDefault("battery.baud", 1200)
@@ -457,7 +461,9 @@ func initConfig() error {
 	}
 
 	fmt.Println("config: ", viper.AllSettings())
-	timerInterval = viper.GetInt("timer.interval")
+	timerRapid = viper.GetDuration("timer.interval.rapid")
+	timerNormal = viper.GetDuration("timer.interval.normal")
+	timerPeriodic = viper.GetDuration("timer.interval.periodic")
 	mqttServer = viper.GetString("mqtt.server")
 	mqttPort = viper.GetInt("mqtt.port")
 	mqttUsername = viper.GetString("mqtt.username")

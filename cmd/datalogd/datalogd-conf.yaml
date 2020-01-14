@@ -1,5 +1,8 @@
 timer:
-  interval: 10
+  interval:
+    rapid: 3
+    normal: 10
+    periodic: 60
 
 mqtt:
   server: localhost
