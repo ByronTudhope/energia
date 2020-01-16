@@ -366,11 +366,27 @@ func marshalMap(data interface{}) (map[string]string, error) {
 		name := field.Name
 		val := v.FieldByName(name)
 
-		out[name] = fmt.Sprintf("%v", val.Interface())
+		switch val.Kind() {
+		case reflect.Float32, reflect.Float64:
+			out[name] = fmt.Sprintf("%f", val.Float())
+		case reflect.Bool:
+			out[name] = fmt.Sprintf("%d", btoi(val.Bool()))
+		case reflect.Int:
+			out[name] = fmt.Sprintf("%d", val.Int())
+		default:
+			continue
+		}
 	}
 
 	fmt.Println("marshaled map", out)
 	return out, nil
+}
+
+func btoi(b bool) int {
+	if b {
+		return 1
+	}
+	return 0
 }
 
 func structFields(v reflect.Value) []reflect.StructField {
