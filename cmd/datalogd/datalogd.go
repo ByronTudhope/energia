@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"reflect"
 	"strconv"
 	"strings"
 	"syscall"
@@ -22,9 +23,9 @@ import (
 	"github.com/mindworks-software/energia/pkg/schedule"
 )
 
-var timerRapid  time.Duration
-var timerNormal  time.Duration
-var timerPeriodic  time.Duration
+var timerRapid time.Duration
+var timerNormal time.Duration
+var timerPeriodic time.Duration
 
 var mqttServer string
 var mqttPort int
@@ -306,7 +307,27 @@ func deviceMode(ucc chan connector.Connector, client mqtt.Client, t time.Time) e
 }
 
 func sendInverterMessage(data messageData, client mqtt.Client) error {
-	return sendMessage(data, inverterTopic+"/"+data.MessageType, client)
+	err := sendMessage(data, inverterTopic+"/"+data.MessageType, client)
+	if err != nil {
+		return err
+	}
+
+	err = sendMap(data, client)
+	return err
+}
+
+func sendMap(data messageData, client mqtt.Client) error {
+	dataMap, err := marshalMap(data.Data)
+	if err != nil {
+		return err
+	}
+
+	for k, v := range dataMap {
+		topic := fmt.Sprintf("emon/%s/%s_%s", mqttClientId, data.MessageType, k)
+		token := client.Publish(topic, 1, true, v)
+		token.Wait()
+	}
+	return nil
 }
 
 func sendBatteryMessage(data messageData, client mqtt.Client) error {
@@ -321,6 +342,56 @@ func sendMessage(data messageData, topic string, client mqtt.Client) error {
 	token := client.Publish(topic, 1, true, msg)
 	token.Wait()
 	return nil
+}
+
+func marshalMap(data interface{}) (map[string]string, error) {
+
+	out := make(map[string]string)
+
+	v := reflect.ValueOf(data)
+
+	// if pointer get the underlying element≤
+	for v.Kind() == reflect.Ptr {
+		v = v.Elem()
+	}
+
+	if v.Kind() != reflect.Struct {
+		err := fmt.Errorf("not a struct")
+		return nil, err
+	}
+
+	fields := structFields(v)
+
+	for _, field := range fields {
+		name := field.Name
+		val := v.FieldByName(name)
+
+		s, ok := val.Interface().(fmt.Stringer)
+		if ok {
+			out[name] = s.String()
+		}
+	}
+
+	fmt.Println("marshaled map", out)
+	return out, nil
+}
+
+func structFields(v reflect.Value) []reflect.StructField {
+	t := v.Type()
+
+	var f []reflect.StructField
+
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		// we can't access the value of unexported fields
+		if field.PkgPath != "" {
+			continue
+		}
+
+		f = append(f, field)
+	}
+
+	return f
 }
 
 func messageReceiver(client mqtt.Client, msg mqtt.Message) {
