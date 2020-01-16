@@ -366,10 +366,7 @@ func marshalMap(data interface{}) (map[string]string, error) {
 		name := field.Name
 		val := v.FieldByName(name)
 
-		s, ok := val.Interface().(fmt.Stringer)
-		if ok {
-			out[name] = s.String()
-		}
+		out[name] = fmt.Sprintf("%v", val.Interface())
 	}
 
 	fmt.Println("marshaled map", out)
