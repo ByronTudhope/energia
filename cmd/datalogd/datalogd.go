@@ -371,8 +371,10 @@ func marshalMap(data interface{}) (map[string]string, error) {
 			out[name] = fmt.Sprintf("%f", val.Float())
 		case reflect.Bool:
 			out[name] = fmt.Sprintf("%d", btoi(val.Bool()))
-		case reflect.Int, reflect.Uint8, reflect.Uint:
+		case reflect.Int:
 			out[name] = fmt.Sprintf("%d", val.Int())
+		case reflect.Uint8, reflect.Uint:
+			out[name] = fmt.Sprintf("%d", val.Uint())
 		default:
 			continue
 		}
