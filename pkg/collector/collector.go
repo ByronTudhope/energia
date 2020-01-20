@@ -1,7 +1,9 @@
 package collector
 
 import (
+	"encoding/json"
 	"fmt"
+	"net/http"
 	"strconv"
 	"time"
 
@@ -14,6 +16,11 @@ type dataCollector struct {
 	Buffer    []float64
 	MinuteAvg []float64
 	tck       *time.Ticker
+}
+
+type outputVal struct {
+	Time  string
+	Value float64
 }
 
 /*
@@ -36,7 +43,7 @@ var dcMap = make(map[string]*dataCollector)
 var isEnabled = true
 var tickInterval = 1
 
-func StartCollector(mqc mqtt.Client, topic string) {
+func StartCollector(mqc mqtt.Client, topic string) func(http.ResponseWriter, *http.Request) {
 
 	dc := &dataCollector{Name: topic, MinuteAvg: make([]float64, 24*60)}
 
@@ -53,6 +60,31 @@ func StartCollector(mqc mqtt.Client, topic string) {
 
 	}
 
+	return httpHandler
+
+}
+
+func httpHandler(w http.ResponseWriter, r *http.Request) {
+	topic := r.URL.Path[1:]
+	dc := dcMap[topic]
+	vals := make([]outputVal, 0, 2000)
+	for i, v := range dc.MinuteAvg {
+		ts := fmt.Sprintf("%02d:%02d", i/60, i%60)
+		vals = append(vals, outputVal{
+			Time:  ts,
+			Value: v,
+		})
+	}
+
+	jsonBytes, err := json.MarshalIndent(vals, "", "  ")
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+	}
+	header := w.Header()
+	header["Content-Type"] = []string{"application/json"}
+	w.WriteHeader(200)
+	w.Write(jsonBytes)
 }
 
 func startTicker(mqc mqtt.Client, topic string) *time.Ticker {

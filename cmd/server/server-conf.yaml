@@ -1,0 +1,14 @@
+timer:
+  interval:
+    rapid: 3
+    normal: 10
+    periodic: 60
+
+mqtt:
+  server: 10.147.20.104
+  port: 1883
+  clientId: server-ng
+
+collectors:
+  - topic: emon/datalogd-ng/Status_ACOutputVoltage
+
