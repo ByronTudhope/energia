@@ -182,8 +182,12 @@ func scheduleQuery(f queryFunc, interval time.Duration, ucc chan connector.Conne
 
 			err := f(uc, client, t)
 			if err != nil {
+                fmt.Println("Error: ", err)
 				uc.Close()
-				uc.Open()
+				err = uc.Open()
+                if err != nil {
+                    panic(err)
+                }
 				err = f(uc, client, t)
 				if err != nil {
 					panic(err)
@@ -230,6 +234,9 @@ func warningStatus(uc connector.Connector, client mqtt.Client, t time.Time) erro
 func deviceFlagStatus(uc connector.Connector, client mqtt.Client, t time.Time) error {
 
 	flags, err := axpert.DeviceFlagStatus(uc)
+	if err != nil {
+		return err
+	}
 	msgData := messageData{Timestamp: t, MessageType: "Flags", Data: flags}
 	err = sendInverterMessage(msgData, client)
 	if err != nil {
@@ -243,6 +250,9 @@ func deviceRating(uc connector.Connector, client mqtt.Client, t time.Time) error
 
 	ratingInfo, err := axpert.DeviceRatingInfo(uc)
 	msgData := messageData{Timestamp: t, MessageType: "RatingInfo", Data: ratingInfo}
+	if err != nil {
+		return err
+	}
 	err = sendInverterMessage(msgData, client)
 	if err != nil {
 		return err
@@ -256,6 +266,9 @@ func batteryStatus(uc connector.Connector, client mqtt.Client, t time.Time) erro
 
 	batteryStatus, err := pylontech.GetBatteryStatus(uc)
 	msgData := messageData{Timestamp: t, MessageType: "BatteryStatus", Data: batteryStatus}
+	if err != nil {
+		return err
+	}
 	err = sendBatteryMessage(msgData, client)
 	if err != nil {
 		return err
@@ -310,7 +323,8 @@ func sendInverterMessage(data messageData, client mqtt.Client) error {
 func sendMap(data messageData, client mqtt.Client) error {
 	dataMap, err := marshalMap(data.Data)
 	if err != nil {
-		return err
+        fmt.Println("Error:", err)
+		return nil
 	}
 
 	for k, v := range dataMap {
