@@ -18,7 +18,13 @@ func NewUSBConnector(path string) (uc *USBConnector, err error) {
 		return nil, err
 	}
 
-	return &USBConnector{deviceInfo: deviceInfo}, nil
+  c := &USBConnector{deviceInfo: deviceInfo}
+  
+  err = c.Open()
+  if err != nil {
+    return nil, err
+  }
+return c, nil
 }
 
 func (uc *USBConnector) DeviceInfo() *hid.DeviceInfo {

@@ -3,7 +3,6 @@ package main
 import (
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 	"os/signal"
 	"reflect"
@@ -52,7 +51,7 @@ type messageData struct {
 	Data        interface{}
 }
 
-type queryFunc func(chan connector.Connector, mqtt.Client, time.Time) error
+type queryFunc func(connector.Connector, mqtt.Client, time.Time) error
 
 type query struct {
 	f        queryFunc
@@ -76,10 +75,6 @@ func main() {
 	if err != nil {
 		panic(err)
 	}
-	err = uc.Open()
-	if err != nil {
-		panic(err)
-	}
 	defer uc.Close()
 
 	ucc = make(chan connector.Connector, 1)
@@ -100,10 +95,9 @@ func main() {
 			Timeout:  30 * time.Second,
 		}
 
-		sc = connector.NewSerialConnector(serialConfig)
-		err = sc.Open()
+		sc, err = connector.NewSerialConnector(serialConfig)
 		if err != nil {
-			log.Panic(err)
+			panic(err)
 		}
 		defer sc.Close()
 
@@ -111,21 +105,11 @@ func main() {
 		scc <- sc
 	}
 
-	clientOpts := mqtt.NewClientOptions()
-	clientOpts.AddBroker("tcp://" + mqttServer + ":" + strconv.Itoa(mqttPort))
-	clientOpts.SetAutoReconnect(true)
-	clientOpts.SetStore(mqtt.NewFileStore("/tmp/mqtt"))
-	clientOpts.SetCleanSession(false)
-	clientOpts.SetClientID(mqttClientId)
-	clientOpts.SetOnConnectHandler(logConnect)
-	clientOpts.SetConnectionLostHandler(logConnectionLost)
-	clientOpts.SetUsername(mqttUsername)
-	clientOpts.SetPassword(mqttPassword)
-
-	client := mqtt.NewClient(clientOpts)
-	if token := client.Connect(); token.Wait() && token.Error() != nil {
-		panic(token.Error())
+	client, err := connectMQTT()
+	if err != nil {
+		panic(err)
 	}
+
 	defer client.Disconnect(250)
 	fmt.Println("Connected to mqtt")
 
@@ -167,21 +151,52 @@ func main() {
 	fmt.Println("exiting")
 }
 
+func connectMQTT() (mqtt.Client, error) {
+
+	clientOpts := mqtt.NewClientOptions()
+	clientOpts.AddBroker("tcp://" + mqttServer + ":" + strconv.Itoa(mqttPort))
+	clientOpts.SetAutoReconnect(true)
+	clientOpts.SetStore(mqtt.NewFileStore("/tmp/mqtt"))
+	clientOpts.SetCleanSession(false)
+	clientOpts.SetClientID(mqttClientId)
+	clientOpts.SetOnConnectHandler(logConnect)
+	clientOpts.SetConnectionLostHandler(logConnectionLost)
+	clientOpts.SetUsername(mqttUsername)
+	clientOpts.SetPassword(mqttPassword)
+
+	client := mqtt.NewClient(clientOpts)
+	if token := client.Connect(); token.Wait() && token.Error() != nil {
+		// panic(token.Error())
+		return nil, token.Error()
+	}
+
+	return client, nil
+
+}
+
 func scheduleQuery(f queryFunc, interval time.Duration, ucc chan connector.Connector, client mqtt.Client) *time.Ticker {
 	ticker := time.NewTicker(interval)
 	go func() {
 		for t := range ticker.C {
-			f(ucc, client, t)
+			uc := <-ucc
+
+			err := f(uc, client, t)
+			if err != nil {
+				uc.Close()
+				uc.Open()
+				err = f(uc, client, t)
+				if err != nil {
+					panic(err)
+				}
+			}
+
+			ucc <- uc
 		}
 	}()
 	return ticker
 }
 
-func deviceGeneralStatus(ucc chan connector.Connector, client mqtt.Client, t time.Time) error {
-
-	uc := <-ucc
-
-	defer func() { ucc <- uc }()
+func deviceGeneralStatus(uc connector.Connector, client mqtt.Client, t time.Time) error {
 
 	status, err := axpert.DeviceGeneralStatus(uc)
 	if err != nil {
@@ -197,11 +212,7 @@ func deviceGeneralStatus(ucc chan connector.Connector, client mqtt.Client, t tim
 
 }
 
-func warningStatus(ucc chan connector.Connector, client mqtt.Client, t time.Time) error {
-
-	uc := <-ucc
-
-	defer func() { ucc <- uc }()
+func warningStatus(uc connector.Connector, client mqtt.Client, t time.Time) error {
 
 	warnings, err := axpert.WarningStatus(uc)
 	if err != nil {
@@ -216,11 +227,7 @@ func warningStatus(ucc chan connector.Connector, client mqtt.Client, t time.Time
 
 }
 
-func deviceFlagStatus(ucc chan connector.Connector, client mqtt.Client, t time.Time) error {
-
-	uc := <-ucc
-
-	defer func() { ucc <- uc }()
+func deviceFlagStatus(uc connector.Connector, client mqtt.Client, t time.Time) error {
 
 	flags, err := axpert.DeviceFlagStatus(uc)
 	msgData := messageData{Timestamp: t, MessageType: "Flags", Data: flags}
@@ -232,11 +239,7 @@ func deviceFlagStatus(ucc chan connector.Connector, client mqtt.Client, t time.T
 
 }
 
-func deviceRating(ucc chan connector.Connector, client mqtt.Client, t time.Time) error {
-
-	uc := <-ucc
-
-	defer func() { ucc <- uc }()
+func deviceRating(uc connector.Connector, client mqtt.Client, t time.Time) error {
 
 	ratingInfo, err := axpert.DeviceRatingInfo(uc)
 	msgData := messageData{Timestamp: t, MessageType: "RatingInfo", Data: ratingInfo}
@@ -249,11 +252,7 @@ func deviceRating(ucc chan connector.Connector, client mqtt.Client, t time.Time)
 
 }
 
-func batteryStatus(ucc chan connector.Connector, client mqtt.Client, t time.Time) error {
-
-	uc := <-ucc
-
-	defer func() { ucc <- uc }()
+func batteryStatus(uc connector.Connector, client mqtt.Client, t time.Time) error {
 
 	batteryStatus, err := pylontech.GetBatteryStatus(uc)
 	msgData := messageData{Timestamp: t, MessageType: "BatteryStatus", Data: batteryStatus}
@@ -266,11 +265,7 @@ func batteryStatus(ucc chan connector.Connector, client mqtt.Client, t time.Time
 
 }
 
-func parallelDeviceInfo(ucc chan connector.Connector, client mqtt.Client, t time.Time) error {
-
-	uc := <-ucc
-
-	defer func() { ucc <- uc }()
+func parallelDeviceInfo(uc connector.Connector, client mqtt.Client, t time.Time) error {
 
 	for inv := 0; inv < inverterCount; inv++ {
 		deviceInfo, err := axpert.ParallelDeviceInfo(uc, inv)
@@ -286,11 +281,7 @@ func parallelDeviceInfo(ucc chan connector.Connector, client mqtt.Client, t time
 	return nil
 }
 
-func deviceMode(ucc chan connector.Connector, client mqtt.Client, t time.Time) error {
-
-	uc := <-ucc
-
-	defer func() { ucc <- uc }()
+func deviceMode(uc connector.Connector, client mqtt.Client, t time.Time) error {
 
 	mode, err := axpert.DeviceMode(uc)
 	if err != nil {

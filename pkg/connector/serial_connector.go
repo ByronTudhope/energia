@@ -15,8 +15,13 @@ type SerialConnector struct {
 	scanner *bufio.Scanner
 }
 
-func NewSerialConnector(config serial.Config) *SerialConnector {
-	return &SerialConnector{config: config}
+func NewSerialConnector(config serial.Config) (*SerialConnector, error) {
+  c := &SerialConnector{config: config}
+  err := c.Open()
+  if err != nil{
+    return nil ,  err
+  }
+  return c, nil
 }
 
 func (sc *SerialConnector) Config() serial.Config {
