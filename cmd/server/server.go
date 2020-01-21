@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -24,6 +25,14 @@ var mqttClientId string
 var mqttUsername string
 var mqttPassword string
 
+var collectors map[string]*collector.DataCollector
+
+type CollectorConfig struct {
+	Topic        string `mapstructure:"topic"`
+	TickInterval int    `mapstructure:"tickInterval"`
+	Enabled      bool   `mapstructure:"enabled"`
+}
+
 func main() {
 	fmt.Println("initializing config ")
 
@@ -33,6 +42,10 @@ func main() {
 		panic(err)
 	}
 
+	var collectorConfig []CollectorConfig
+
+	viper.UnmarshalKey("collectors", &collectorConfig)
+
 	client, err := connectMQTT()
 	if err != nil {
 		panic(err)
@@ -41,12 +54,32 @@ func main() {
 	defer client.Disconnect(250)
 	fmt.Println("Connected to mqtt")
 
-	handler := collector.StartCollector(client, "emon/datalogd-ng/Status_ACOutputVoltage")
+	collectors = make(map[string]*collector.DataCollector)
+	for _, config := range collectorConfig {
+		collector := collector.StartCollector(client, config.Topic)
+		collectors[config.Topic] = collector
+	}
 
-	http.HandleFunc("/emon/datalogd-ng/Status_ACOutputVoltage", handler)
+	http.HandleFunc("/", handler)
 
 	http.ListenAndServe(":9090", nil)
 
+}
+
+func handler(w http.ResponseWriter, r *http.Request) {
+	topic := r.URL.Path[1:]
+	dc := collectors[topic]
+
+	vals, err := dc.GetAllData()
+	jsonBytes, err := json.MarshalIndent(vals, "", "  ")
+	if err != nil {
+		w.WriteHeader(500)
+		w.Write([]byte(err.Error()))
+	}
+	header := w.Header()
+	header["Content-Type"] = []string{"application/json"}
+	w.WriteHeader(200)
+	w.Write(jsonBytes)
 }
 
 func connectMQTT() (mqtt.Client, error) {

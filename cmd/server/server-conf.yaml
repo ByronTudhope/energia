@@ -11,4 +11,13 @@ mqtt:
 
 collectors:
   - topic: emon/datalogd-ng/Status_ACOutputVoltage
+    tickInterval: 1
+    enabled: true
+  - topic: emon/datalogd-ng/Status_GridVoltage
+    tickInterval: 1
+    enabled: true
+  - topic: emon/datalogd-ng/DeviceInfo_TotalOutputActivePower
+    tickInterval: 1
+    enabled: true
+
 
