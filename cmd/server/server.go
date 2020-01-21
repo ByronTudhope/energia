@@ -1,7 +1,6 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -11,6 +10,8 @@ import (
 	mqtt "github.com/eclipse/paho.mqtt.golang"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+
+	"github.com/gin-gonic/gin"
 
 	"github.com/mindworks-software/energia/pkg/collector"
 )
@@ -60,28 +61,51 @@ func main() {
 		collectors[config.Topic] = collector
 	}
 
-	http.HandleFunc("/", handler)
+	router := gin.Default()
 
-	http.ListenAndServe(":9090", nil)
+	router.GET("/", home)
+	router.GET("/emon/:systemname/:topic", handler)
+
+	router.GET("/emon/:systemname/:topic/*action", current)
+
+	router.Run(":9090")
+}
+
+func home(c *gin.Context) {
+	var links string
+
+	for k, _ := range collectors {
+		link := fmt.Sprintf("<a href=%s>%s</a><br>", k, k)
+		links += link
+		link = fmt.Sprintf("<a href=%s/last>%s/last</a><br>", k, k)
+		links += link
+
+	}
+
+	c.Data(http.StatusOK, "text/html", []byte(links))
 
 }
 
-func handler(w http.ResponseWriter, r *http.Request) {
-	topic := r.URL.Path[1:]
+func handler(c *gin.Context) {
+	topic := c.Request.URL.Path[1:]
 	dc := collectors[topic]
 
 	vals, err := dc.GetAllData()
-	jsonBytes, err := json.MarshalIndent(vals, "", "  ")
 	if err != nil {
-		w.WriteHeader(500)
-		w.Write([]byte(err.Error()))
+		c.AbortWithError(http.StatusInternalServerError, err)
 	}
-	header := w.Header()
-	header["Content-Type"] = []string{"application/json"}
-	w.WriteHeader(200)
-	w.Write(jsonBytes)
+
+	c.JSON(http.StatusOK, vals)
 }
 
+func current(c *gin.Context) {
+	topic := fmt.Sprintf("emon/%s/%s", c.Param("systemname"), c.Param("topic"))
+	dc := collectors[topic]
+
+	val := dc.GetCurrent()
+
+	c.JSON(http.StatusOK, val)
+}
 func connectMQTT() (mqtt.Client, error) {
 
 	clientOpts := mqtt.NewClientOptions()
