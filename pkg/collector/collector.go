@@ -1,6 +1,7 @@
 package collector
 
 import (
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -28,6 +29,11 @@ type TimeValue struct {
 	Value float64
 }
 
+type DailyArchive struct {
+	Date   string
+	Values []float64
+}
+
 /*
   Collector should use given mqtt client and subscripe to given topic.
   On start up it should create an internal ticker that will ticke every full minute.
@@ -47,10 +53,27 @@ type TimeValue struct {
 var dcMap = make(map[string]*DataCollector)
 var isEnabled = true
 var tickInterval = 1
+var tempChan chan []float64
+
+const dailyMinutes = 24 * 60
+const ISODate = "2006-01-02"
 
 func StartCollector(mqc mqtt.Client, topic string) *DataCollector {
+	tempChan = make(chan []float64, 1)
+	mqc.Subscribe(topic+"/temp", 1, handleTempMessage)
 
-	dc := &DataCollector{name: topic, minuteAvg: make([]float64, 24*60)}
+	var dc *DataCollector
+	select {
+	case minAvg := <-tempChan:
+		fmt.Println("Initialising from stored temp msg. Topic is", topic)
+		dc = &DataCollector{name: topic, minuteAvg: minAvg}
+
+	case <-time.After(2000 * time.Millisecond):
+		fmt.Println("Starting with empty dataset. Topic is", topic)
+		dc = &DataCollector{name: topic, minuteAvg: make([]float64, dailyMinutes)}
+	}
+
+	mqc.Unsubscribe(topic + "/temp")
 
 	dcMap[topic] = dc
 	// if we don't have a ticker yet
@@ -69,8 +92,20 @@ func StartCollector(mqc mqtt.Client, topic string) *DataCollector {
 
 }
 
+func handleTempMessage(client mqtt.Client, message mqtt.Message) {
+	fmt.Println()
+	temp := &DailyArchive{}
+	err := json.Unmarshal(message.Payload(), &temp)
+	if err != nil {
+		fmt.Println("error unmarshalling temp values", message.Payload())
+	}
+	if temp.Date == time.Now().Format(ISODate) {
+		tempChan <- temp.Values
+		fmt.Println("Posted temp to channel. Topic is", message.Topic())
+	}
+}
+
 func (dc *DataCollector) GetData(startTime string, endTime string) ([]TimeValue, error) {
-	vals := make([]TimeValue, 0, 2000)
 	var err error
 	startIndex := 0
 	if startTime != "" {
@@ -88,7 +123,7 @@ func (dc *DataCollector) GetData(startTime string, endTime string) ([]TimeValue,
 		}
 	}
 
-	if startIndex < 0 || endIndex < 0 || startIndex > 1439 || endIndex > 1439 {
+	if startIndex < 0 || endIndex < 0 || startIndex >= dailyMinutes || endIndex >= dailyMinutes {
 		err = fmt.Errorf("invalid startTime %s, must be 00:00-23:59")
 		return nil, err
 	}
@@ -101,6 +136,13 @@ func (dc *DataCollector) GetData(startTime string, endTime string) ([]TimeValue,
 		endIndex = len(dc.minuteAvg) - 1
 	}
 
+	vals := dc.getTimeValues(startIndex, endIndex)
+
+	return vals, nil
+}
+
+func (dc *DataCollector) getTimeValues(startIndex int, endIndex int) []TimeValue {
+	vals := make([]TimeValue, 0, 2000)
 	for i, v := range dc.minuteAvg[startIndex : endIndex+1] {
 		ts := fmt.Sprintf("%02d:%02d", (i+startIndex)/60, (i+startIndex)%60)
 		vals = append(vals, TimeValue{
@@ -108,8 +150,7 @@ func (dc *DataCollector) GetData(startTime string, endTime string) ([]TimeValue,
 			Value: v,
 		})
 	}
-
-	return vals, nil
+	return vals
 }
 
 func (dc *DataCollector) GetAllData() ([]TimeValue, error) {
@@ -143,14 +184,37 @@ func parseIndex(time string) (int, error) {
 func startTicker(mqc mqtt.Client, topic string) *time.Ticker {
 	fmt.Println("Starting ticker")
 	tck := time.NewTicker(time.Duration(tickInterval) * time.Minute)
-	mqc.Subscribe(topic, 1, handleMessage)
+	mqc.Subscribe(topic, 1, handleDataMessage)
 	go func() {
 		for t := range tck.C {
 
 			if isEnabled {
 				fmt.Println("Tick for : ", topic)
-				avgBuff(dcMap[topic], t)
-				//TODO something clever to reset the thing at midnight
+				dc := dcMap[topic]
+				if t.Hour() == 0 && t.Minute() == 0 {
+					archive := DailyArchive{
+						Date:   t.Add(-1 * time.Hour).Format(ISODate),
+						Values: dc.minuteAvg,
+					}
+					archiveJson, err := json.Marshal(archive)
+					if err != nil {
+						fmt.Println("Error formatting temp", err)
+					}
+					mqc.Publish(topic+"/archive", 1, true, archiveJson)
+					dc.minuteAvg = make([]float64, dailyMinutes)
+				}
+
+				avgBuff(dc, t)
+
+				temp := DailyArchive{
+					Date:   t.Format(ISODate),
+					Values: dc.minuteAvg,
+				}
+				avgJson, err := json.Marshal(temp)
+				if err != nil {
+					fmt.Println("Error formatting temp", err)
+				}
+				mqc.Publish(topic+"/temp", 1, true, avgJson)
 
 				fmt.Println("Tock for : ", topic)
 			} else {
@@ -162,7 +226,7 @@ func startTicker(mqc mqtt.Client, topic string) *time.Ticker {
 	return tck
 }
 
-func handleMessage(client mqtt.Client, msg mqtt.Message) {
+func handleDataMessage(client mqtt.Client, msg mqtt.Message) {
 
 	dc := dcMap[msg.Topic()]
 
