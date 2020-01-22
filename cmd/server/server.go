@@ -64,12 +64,24 @@ func main() {
 	router := gin.Default()
 
 	router.GET("/", home)
+	router.Static("/dash", "./dash")
+	router.GET("/collectors", collectorList)
 
-	router.GET("/emon/:systemname/:topic", handler)
+	router.GET("/emon/:systemname/:topic", minuteAvgHandler)
 
 	router.GET("/emon/:systemname/:topic/*action", current)
 
 	router.Run(":9090")
+}
+
+func collectorList(c *gin.Context) {
+	topics := make([]string, 0)
+
+	for k, _ := range collectors {
+		topics = append(topics, k)
+	}
+
+	c.JSON(http.StatusOK, topics)
 }
 
 func home(c *gin.Context) {
@@ -80,14 +92,17 @@ func home(c *gin.Context) {
 		links += link
 		link = fmt.Sprintf("<a href=%s/last>%s/last</a><br>", k, k)
 		links += link
-
+		st := time.Now().Add(-1 * time.Hour).Format("15:04")
+		et := time.Now().Add(1 * time.Minute).Format("15:04")
+		link = fmt.Sprintf("<a href=%s?startTime=%s&endTime=%s>%s between %s & %s</a><br>", k, st, et, k, st, et)
+		links += link
 	}
 
 	c.Data(http.StatusOK, "text/html", []byte(links))
 
 }
 
-func handler(c *gin.Context) {
+func minuteAvgHandler(c *gin.Context) {
 	var vals []collector.TimeValue
 	var err error
 

@@ -1,0 +1,141 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dashboard Im and index</title>
+    <!-- Load plotly.js into the DOM -->
+    <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
+
+
+</head>
+<body>
+<div id="div1" hidden="true"></div>
+
+<button id="button">Get External Content</button>
+
+
+<div id="myDiv"></div>
+
+<script>
+    var myc
+
+    // loadData("emon/datalogd-ng/Status_ACOutputVoltage").then((p) => {
+    //     console.log('I have got this data ', p)
+    //     // const data = JSON.parse(jsonData);
+    //     let x = [];
+    //     let y = [];
+    //     for (var timeValue of p) {
+    //         x.push(timeValue.Time);
+    //         y.push(timeValue.Value);
+    //     }
+    //
+    //
+    //     return [x,y];
+    // })
+
+
+    load().then((topics) => {
+
+
+        document.getElementById('div1').innerText = topics;
+        console.log('Got topics', topics)
+
+        let promisess = []
+
+        for (let t of topics) {
+            console.log(t)
+            promisess.push(loadData(t));
+        }
+
+        Promise.all(promisess).then((results) => {
+            console.log("Results", results)
+
+
+            // let xData=[];
+            // let yData=[];
+
+            let data = [];
+
+            for (let r of results) {
+
+                console.log(r)
+
+                // const data = JSON.parse(jsonData);
+                let x = [];
+                let y = [];
+                for (var timeValue of r) {
+                    x.push(timeValue.Time);
+                    y.push(timeValue.Value);
+                }
+
+
+                var trace = {
+                    x: x,
+                    y: y,
+                    mode: 'lines'
+                }
+                data.push(trace)
+            }
+            console.log(trace)
+
+            var layout = {
+                title: 'Line Dash',
+                xaxis: {
+                    // xaxisrange: [0.75, 5.25],
+                    autorange: true
+                },
+                yaxis: {
+                    // range: [0, 18.5],
+                    autorange: true
+                },
+                legend: {
+                    y: 0.5,
+                    traceorder: 'reversed',
+                    font: {
+                        size: 16
+                    }
+                }
+            };
+
+            Plotly.newPlot('myDiv', data, layout);
+
+        });
+    });
+
+    document.getElementById('button').addEventListener('click', function () {
+        const t = document.getElementById('div1').innerText;
+        document.getElementById("div1").removeAttribute("hidden")
+
+    });
+
+
+    function load() {
+        return fetch('/collectors')
+            .then((response) => {
+                const collectors = response.json();
+                // console.log('Got devices', collectors)
+                return collectors;
+            })
+            .catch((err) => {
+                console.error('Error getting data from network', err);
+                return null;
+            });
+    }
+
+    function loadData(topic) {
+        return fetch("/" + topic)
+            .then((response) => {
+                const data = response.json();
+                console.log('DEBUG ME DATA', data)
+
+                return data;
+            })
+            .catch((err) => {
+                console.error('Error getting data from network', err);
+                return null;
+            });
+    }
+
+</script>
+</body>
+</html>
