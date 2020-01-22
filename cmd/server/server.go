@@ -64,6 +64,7 @@ func main() {
 	router := gin.Default()
 
 	router.GET("/", home)
+
 	router.GET("/emon/:systemname/:topic", handler)
 
 	router.GET("/emon/:systemname/:topic/*action", current)
@@ -87,10 +88,21 @@ func home(c *gin.Context) {
 }
 
 func handler(c *gin.Context) {
+	var vals []collector.TimeValue
+	var err error
+
 	topic := c.Request.URL.Path[1:]
 	dc := collectors[topic]
+	st := c.Query("startTime")
+	et := c.Query("endTime")
 
-	vals, err := dc.GetAllData()
+	if st != "" && et != "" {
+		vals, err = dc.GetData(st, et)
+	} else {
+
+		vals, err = dc.GetAllData()
+	}
+
 	if err != nil {
 		c.AbortWithError(http.StatusInternalServerError, err)
 	}
