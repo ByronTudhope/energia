@@ -5,36 +5,34 @@
     <title>Dashboard Im and index</title>
     <!-- Load plotly.js into the DOM -->
     <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
-
+<script src="https://cdn.jsdelivr.net/npm/tasktimer@3.0.0/lib/tasktimer.min.js"></script>
 
 </head>
 <body>
 <div id="div1" hidden="true"></div>
 
-<button id="button">Get External Content</button>
+<button id="button">Refresh</button>
 
 
 <div id="myDiv"></div>
 
 <script>
-    var myc
-
-    // loadData("emon/datalogd-ng/Status_ACOutputVoltage").then((p) => {
-    //     console.log('I have got this data ', p)
-    //     // const data = JSON.parse(jsonData);
-    //     let x = [];
-    //     let y = [];
-    //     for (var timeValue of p) {
-    //         x.push(timeValue.Time);
-    //         y.push(timeValue.Value);
-    //     }
-    //
-    //
-    //     return [x,y];
-    // })
+ const { TaskTimer } = tasktimer;
+	const timer = new TaskTimer(10000);
+timer.on('tick', () => {
+	console.log(`Tick count: ${timer.tickCount}`); 
+	loadPage()
+});
+timer.start();
 
 
-    load().then((topics) => {
+	loadPage()
+    document.getElementById('button').addEventListener('click', loadPage );
+
+function loadPage(){
+	console.log("Loading Page")
+    return loadCollectors()
+		.then((topics) => {
 
 
         document.getElementById('div1').innerText = topics;
@@ -50,20 +48,15 @@
         Promise.all(promisess).then((results) => {
             console.log("Results", results)
 
-
-            // let xData=[];
-            // let yData=[];
-
             let data = [];
 
             for (let r of results) {
 
                 console.log(r)
 
-                // const data = JSON.parse(jsonData);
                 let x = [];
                 let y = [];
-                for (var timeValue of r) {
+                for (var timeValue of r[1]) {
                     x.push(timeValue.Time);
                     y.push(timeValue.Value);
                 }
@@ -72,14 +65,19 @@
                 var trace = {
                     x: x,
                     y: y,
-                    mode: 'lines'
+                    mode: 'lines',
+		    name: r[0],
+			line: {
+			dash: 'solid',
+				width: 4
+			}
                 }
                 data.push(trace)
             }
             console.log(trace)
 
             var layout = {
-                title: 'Line Dash',
+                title: 'Load vs PV',
                 xaxis: {
                     // xaxisrange: [0.75, 5.25],
                     autorange: true
@@ -102,14 +100,11 @@
         });
     });
 
-    document.getElementById('button').addEventListener('click', function () {
-        const t = document.getElementById('div1').innerText;
-        document.getElementById("div1").removeAttribute("hidden")
-
-    });
 
 
-    function load() {
+}
+
+    function loadCollectors() {
         return fetch('/collectors')
             .then((response) => {
                 const collectors = response.json();
@@ -126,9 +121,8 @@
         return fetch("/" + topic)
             .then((response) => {
                 const data = response.json();
-                console.log('DEBUG ME DATA', data)
-
-                return data;
+			topicName=topic.split('/').pop();
+			return Promise.all([Promise.resolve(topicName),data]);
             })
             .catch((err) => {
                 console.error('Error getting data from network', err);
