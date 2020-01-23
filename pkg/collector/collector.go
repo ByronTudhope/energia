@@ -92,7 +92,7 @@ func StartCollector(mqc mqtt.Client, topic string) *DataCollector {
 
 }
 
-func handleTempMessage(client mqtt.Client, message mqtt.Message) {
+func handleTempMessage(_ mqtt.Client, message mqtt.Message) {
 	fmt.Println()
 	temp := &DailyArchive{}
 	err := json.Unmarshal(message.Payload(), &temp)
@@ -158,7 +158,11 @@ func (dc *DataCollector) GetAllData() ([]TimeValue, error) {
 }
 
 func (dc *DataCollector) GetCurrent() float64 {
-	return dc.buffer[len(dc.buffer)-1]
+	l := len(dc.buffer)
+	if l > 0 {
+		return dc.buffer[l-1]
+	}
+	return 0
 }
 
 func parseIndex(time string) (int, error) {
