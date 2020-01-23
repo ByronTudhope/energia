@@ -124,7 +124,7 @@ func (dc *DataCollector) GetData(startTime string, endTime string) ([]TimeValue,
 	}
 
 	if startIndex < 0 || endIndex < 0 || startIndex >= dailyMinutes || endIndex >= dailyMinutes {
-		err = fmt.Errorf("invalid startTime %s, must be 00:00-23:59")
+		err = fmt.Errorf("invalid time, must be 00:00-23:59")
 		return nil, err
 	}
 
@@ -226,7 +226,7 @@ func startTicker(mqc mqtt.Client, topic string) *time.Ticker {
 	return tck
 }
 
-func handleDataMessage(client mqtt.Client, msg mqtt.Message) {
+func handleDataMessage(_ mqtt.Client, msg mqtt.Message) {
 
 	dc := dcMap[msg.Topic()]
 
@@ -242,12 +242,17 @@ func handleDataMessage(client mqtt.Client, msg mqtt.Message) {
 
 func avgBuff(dc *DataCollector, t time.Time) {
 	l := float64(len(dc.buffer))
-	var sum float64
-	for _, v := range dc.buffer {
-		sum += v
-	}
 
-	avg := sum / l
+	var avg float64
+	var sum float64
+
+	if l > 0 {
+		for _, v := range dc.buffer {
+			sum += v
+		}
+
+		avg = sum / l
+	}
 
 	h := t.Hour()
 	m := t.Minute()
