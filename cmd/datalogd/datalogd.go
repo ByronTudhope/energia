@@ -156,7 +156,7 @@ func connectMQTT() (mqtt.Client, error) {
 	clientOpts := mqtt.NewClientOptions()
 	clientOpts.AddBroker("tcp://" + mqttServer + ":" + strconv.Itoa(mqttPort))
 	clientOpts.SetAutoReconnect(true)
-	clientOpts.SetStore(mqtt.NewFileStore("/tmp/mqtt"))
+	clientOpts.SetStore(mqtt.NewFileStore("/tmp/mqtt/"+mqttClientId))
 	clientOpts.SetCleanSession(false)
 	clientOpts.SetClientID(mqttClientId)
 	clientOpts.SetOnConnectHandler(logConnect)
@@ -285,7 +285,7 @@ func parallelDeviceInfo(uc connector.Connector, client mqtt.Client, t time.Time)
 		if err != nil {
 			return err
 		}
-		msgData := messageData{Timestamp: t, MessageType: "DeviceInfo", Data: deviceInfo}
+		msgData := messageData{Timestamp: t, MessageType: "DeviceInfo/"+strconv.Itoa(inv), Data: deviceInfo}
 		err = sendInverterMessage(msgData, client)
 		if err != nil {
 			return err

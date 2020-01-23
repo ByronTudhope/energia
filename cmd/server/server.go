@@ -67,9 +67,11 @@ func main() {
 	router.Static("/dash", "./dash")
 	router.GET("/collectors", collectorList)
 
-	router.GET("/emon/:systemname/:topic", minuteAvgHandler)
+//	router.GET("/emon/:systemname/:topic", minuteAvgHandler)
+//	router.GET("/emon/:systemname/:topic/last", current)
 
-	router.GET("/emon/:systemname/:topic/*action", current)
+	router.GET("/emon/:systemname/:topic/:subtopic", minuteAvgHandler)
+	router.GET("/emon/:systemname/:topic/:subtopic/*action", current)
 
 	router.Run(":9090")
 }
@@ -127,8 +129,12 @@ func minuteAvgHandler(c *gin.Context) {
 
 func current(c *gin.Context) {
 	topic := fmt.Sprintf("emon/%s/%s", c.Param("systemname"), c.Param("topic"))
-	dc := collectors[topic]
+	if c.Param("subtopic") != "" {
+		topic += fmt.Sprintf("/%s", c.Param("subtopic"))
+	}
+	fmt.Println("Topic : ", topic)
 
+	dc := collectors[topic]
 	val := dc.GetCurrent()
 
 	c.JSON(http.StatusOK, val)
@@ -138,7 +144,7 @@ func connectMQTT() (mqtt.Client, error) {
 	clientOpts := mqtt.NewClientOptions()
 	clientOpts.AddBroker("tcp://" + mqttServer + ":" + strconv.Itoa(mqttPort))
 	clientOpts.SetAutoReconnect(true)
-	clientOpts.SetStore(mqtt.NewFileStore("/tmp/mqtt"))
+	clientOpts.SetStore(mqtt.NewFileStore("/tmp/mqtt/" + mqttClientId))
 	clientOpts.SetCleanSession(false)
 	clientOpts.SetClientID(mqttClientId)
 	clientOpts.SetOnConnectHandler(logConnect)
