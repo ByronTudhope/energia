@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -107,6 +108,7 @@ func collectorList(c echo.Context) error {
 	for k := range collectors {
 		topics = append(topics, k)
 	}
+	sort.Strings(topics)
 
 	return c.JSON(http.StatusOK, topics)
 }
