@@ -19,9 +19,9 @@ type Collector interface {
 type DataCollector struct {
 	name string
 
-	buffer    []float64
-	minuteAvg []float64
-	tck       *time.Ticker
+	buffer      []float64
+	intervalAvg []float64
+	tck         *time.Ticker
 }
 
 type TimeValue struct {
@@ -38,11 +38,11 @@ type DailyArchive struct {
   Collector should use given mqtt client and subscripe to given topic.
   On start up it should create an internal ticker that will ticke every full minute.
   Should it be started in between a full minute, create timer that will start ticker when full minuite strikes
-  On each tick buffered values are read, mean calculated, and stored in DataCollector.minuteAvg
-  minuteAvg is initiated with 24x60 zero values.
+  On each tick buffered values are read, mean calculated, and stored in DataCollector.intervalAvg
+  intervalAvg is initiated with 24x60 zero values.
     Each buffer avg is inserted in specific minutes index.
     Index is calculated using current Hour and Minute, H*60+M
-  Output will use minuteAvg index to workout the minute for each store value
+  Output will use intervalAvg index to workout the minute for each store value
     H = I/60
     M = I%60
 
@@ -51,14 +51,12 @@ type DailyArchive struct {
 */
 
 var dcMap = make(map[string]*DataCollector)
-var isEnabled = true
-var tickInterval = 1
 var tempChan chan []float64
 
 const dailyMinutes = 24 * 60
 const ISODate = "2006-01-02"
 
-func StartCollector(mqc mqtt.Client, topic string) *DataCollector {
+func StartCollector(mqc mqtt.Client, topic string, tickInterval int) *DataCollector {
 	tempChan = make(chan []float64, 1)
 	mqc.Subscribe(topic+"/temp", 1, handleTempMessage)
 
@@ -66,24 +64,24 @@ func StartCollector(mqc mqtt.Client, topic string) *DataCollector {
 	select {
 	case minAvg := <-tempChan:
 		fmt.Println("Initialising from stored temp msg. Topic is", topic)
-		dc = &DataCollector{name: topic, minuteAvg: minAvg}
+		dc = &DataCollector{name: topic, intervalAvg: minAvg}
 
 	case <-time.After(2000 * time.Millisecond):
 		fmt.Println("Starting with empty dataset. Topic is", topic)
-		dc = &DataCollector{name: topic, minuteAvg: make([]float64, dailyMinutes)}
+		dc = &DataCollector{name: topic, intervalAvg: make([]float64, dailyMinutes)}
 	}
 
 	mqc.Unsubscribe(topic + "/temp")
 
 	dcMap[topic] = dc
 	// if we don't have a ticker yet
-	// create  timer for now + (time to next clock 60 sec interval)
-	// when timer ticks, start ticker for 60 sec intervals
+	// create  timer for now + (time to next clock tickInterval)
+	// when timer ticks, start ticker for tickInterval
 	if dc.tck == nil {
-		ch := time.After(calculateOffset())
+		ch := time.After(calculateOffset(tickInterval))
 		go func() {
 			<-ch
-			dc.tck = startTicker(mqc, topic)
+			dc.tck = startTicker(mqc, topic, tickInterval)
 		}()
 
 	}
@@ -115,7 +113,7 @@ func (dc *DataCollector) GetData(startTime string, endTime string) ([]TimeValue,
 		}
 	}
 
-	endIndex := len(dc.minuteAvg) - 1
+	endIndex := len(dc.intervalAvg) - 1
 	if endTime != "" {
 		endIndex, err = parseIndex(endTime)
 		if err != nil {
@@ -128,12 +126,12 @@ func (dc *DataCollector) GetData(startTime string, endTime string) ([]TimeValue,
 		return nil, err
 	}
 
-	if startIndex >= len(dc.minuteAvg) {
-		startIndex = len(dc.minuteAvg) - 1
+	if startIndex >= len(dc.intervalAvg) {
+		startIndex = len(dc.intervalAvg) - 1
 	}
 
-	if endIndex >= len(dc.minuteAvg) {
-		endIndex = len(dc.minuteAvg) - 1
+	if endIndex >= len(dc.intervalAvg) {
+		endIndex = len(dc.intervalAvg) - 1
 	}
 
 	vals := dc.getTimeValues(startIndex, endIndex)
@@ -143,7 +141,7 @@ func (dc *DataCollector) GetData(startTime string, endTime string) ([]TimeValue,
 
 func (dc *DataCollector) getTimeValues(startIndex int, endIndex int) []TimeValue {
 	vals := make([]TimeValue, 0, 2000)
-	for i, v := range dc.minuteAvg[startIndex : endIndex+1] {
+	for i, v := range dc.intervalAvg[startIndex : endIndex+1] {
 		ts := fmt.Sprintf("%02d:%02d", (i+startIndex)/60, (i+startIndex)%60)
 		vals = append(vals, TimeValue{
 			Time:  ts,
@@ -185,45 +183,38 @@ func parseIndex(time string) (int, error) {
 	return hour*60 + min, nil
 }
 
-func startTicker(mqc mqtt.Client, topic string) *time.Ticker {
+func startTicker(mqc mqtt.Client, topic string, tickInterval int) *time.Ticker {
 	fmt.Println("Starting ticker")
 	tck := time.NewTicker(time.Duration(tickInterval) * time.Minute)
 	mqc.Subscribe(topic, 1, handleDataMessage)
 	go func() {
 		for t := range tck.C {
 
-			if isEnabled {
-				fmt.Println("Tick for : ", topic)
-				dc := dcMap[topic]
-				if t.Hour() == 0 && t.Minute() == 0 {
-					archive := DailyArchive{
-						Date:   t.Add(-1 * time.Hour).Format(ISODate),
-						Values: dc.minuteAvg,
-					}
-					archiveJson, err := json.Marshal(archive)
-					if err != nil {
-						fmt.Println("Error formatting temp", err)
-					}
-					mqc.Publish(topic+"/archive", 1, true, archiveJson)
-					dc.minuteAvg = make([]float64, dailyMinutes)
+			fmt.Println("Tick for : ", topic)
+			dc := dcMap[topic]
+			if t.Hour() == 0 && t.Minute() == 0 {
+				archive := DailyArchive{
+					Date:   t.Add(-1 * time.Hour).Format(ISODate),
+					Values: dc.intervalAvg,
 				}
-
-				avgBuff(dc, t)
-
-				temp := DailyArchive{
-					Date:   t.Format(ISODate),
-					Values: dc.minuteAvg,
-				}
-				avgJson, err := json.Marshal(temp)
+				archiveJson, err := json.Marshal(archive)
 				if err != nil {
 					fmt.Println("Error formatting temp", err)
 				}
-				mqc.Publish(topic+"/temp", 1, true, avgJson)
-
-				fmt.Println("Tock for : ", topic)
-			} else {
-				fmt.Println("Collector is disabled: ", topic)
+				mqc.Publish(topic+"/archive", 1, true, archiveJson)
+				dc.intervalAvg = make([]float64, dailyMinutes)
 			}
+			avgBuff(dc, t)
+			temp := DailyArchive{
+				Date:   t.Format(ISODate),
+				Values: dc.intervalAvg,
+			}
+			avgJson, err := json.Marshal(temp)
+			if err != nil {
+				fmt.Println("Error formatting temp", err)
+			}
+			mqc.Publish(topic+"/temp", 1, true, avgJson)
+			fmt.Println("Tock for : ", topic)
 		}
 
 	}()
@@ -265,12 +256,12 @@ func avgBuff(dc *DataCollector, t time.Time) {
 	m := t.Minute()
 
 	i := h*60 + m
-	dc.minuteAvg[i] = avg
+	dc.intervalAvg[i] = avg
 
 	dc.buffer = nil
 }
 
-func calculateOffset() time.Duration {
+func calculateOffset(tickInterval int) time.Duration {
 
 	t := time.Now()
 	i := tickInterval - (t.Second() % tickInterval)

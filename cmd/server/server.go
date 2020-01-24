@@ -57,8 +57,10 @@ func main() {
 
 	collectors = make(map[string]*collector.DataCollector)
 	for _, config := range collectorConfig {
-		collector := collector.StartCollector(client, config.Topic)
-		collectors[config.Topic] = collector
+		if config.Enabled {
+			collector := collector.StartCollector(client, config.Topic, config.TickInterval)
+			collectors[config.Topic] = collector
+		}
 	}
 
 	router := gin.Default()
@@ -67,8 +69,8 @@ func main() {
 	router.Static("/dash", "./dash")
 	router.GET("/collectors", collectorList)
 
-//	router.GET("/emon/:systemname/:topic", minuteAvgHandler)
-//	router.GET("/emon/:systemname/:topic/last", current)
+	//	router.GET("/emon/:systemname/:topic", minuteAvgHandler)
+	//	router.GET("/emon/:systemname/:topic/last", current)
 
 	router.GET("/emon/:systemname/:topic/:subtopic", minuteAvgHandler)
 	router.GET("/emon/:systemname/:topic/:subtopic/*action", current)
