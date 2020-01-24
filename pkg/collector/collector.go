@@ -68,7 +68,7 @@ func StartCollector(mqc mqtt.Client, topic string, tickInterval int) *DataCollec
 
 	case <-time.After(2000 * time.Millisecond):
 		fmt.Println("Starting with empty dataset. Topic is", topic)
-		dc = &DataCollector{name: topic, intervalAvg: make([]float64, dailyMinutes)}
+		dc = &DataCollector{name: topic, intervalAvg: make([]float64, dailyMinutes/tickInterval)}
 	}
 
 	mqc.Unsubscribe(topic + "/temp")
