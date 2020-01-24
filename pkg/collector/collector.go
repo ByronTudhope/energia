@@ -53,10 +53,11 @@ type DailyArchive struct {
 var dcMap = make(map[string]*DataCollector)
 var tempChan chan []float64
 
+const tickInterval = 1
 const dailyMinutes = 24 * 60
 const ISODate = "2006-01-02"
 
-func StartCollector(mqc mqtt.Client, topic string, tickInterval int) *DataCollector {
+func StartCollector(mqc mqtt.Client, topic string) *DataCollector {
 	tempChan = make(chan []float64, 1)
 	mqc.Subscribe(topic+"/temp", 1, handleTempMessage)
 
@@ -68,7 +69,7 @@ func StartCollector(mqc mqtt.Client, topic string, tickInterval int) *DataCollec
 
 	case <-time.After(2000 * time.Millisecond):
 		fmt.Println("Starting with empty dataset. Topic is", topic)
-		dc = &DataCollector{name: topic, intervalAvg: make([]float64, dailyMinutes/tickInterval)}
+		dc = &DataCollector{name: topic, intervalAvg: make([]float64, dailyMinutes)}
 	}
 
 	mqc.Unsubscribe(topic + "/temp")
@@ -78,10 +79,10 @@ func StartCollector(mqc mqtt.Client, topic string, tickInterval int) *DataCollec
 	// create  timer for now + (time to next clock tickInterval)
 	// when timer ticks, start ticker for tickInterval
 	if dc.tck == nil {
-		ch := time.After(calculateOffset(tickInterval))
+		ch := time.After(calculateOffset())
 		go func() {
 			<-ch
-			dc.tck = startTicker(mqc, topic, tickInterval)
+			dc.tck = startTicker(mqc, topic)
 		}()
 
 	}
@@ -183,7 +184,7 @@ func parseIndex(time string) (int, error) {
 	return hour*60 + min, nil
 }
 
-func startTicker(mqc mqtt.Client, topic string, tickInterval int) *time.Ticker {
+func startTicker(mqc mqtt.Client, topic string) *time.Ticker {
 	fmt.Println("Starting ticker")
 	tck := time.NewTicker(time.Duration(tickInterval) * time.Minute)
 	mqc.Subscribe(topic, 1, handleDataMessage)
@@ -261,7 +262,7 @@ func avgBuff(dc *DataCollector, t time.Time) {
 	dc.buffer = nil
 }
 
-func calculateOffset(tickInterval int) time.Duration {
+func calculateOffset() time.Duration {
 
 	t := time.Now()
 	i := tickInterval - (t.Second() % tickInterval)

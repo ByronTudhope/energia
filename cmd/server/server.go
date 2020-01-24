@@ -29,9 +29,8 @@ var mqttPassword string
 var collectors map[string]*collector.DataCollector
 
 type CollectorConfig struct {
-	Topic        string `mapstructure:"topic"`
-	TickInterval int    `mapstructure:"tickInterval"`
-	Enabled      bool   `mapstructure:"enabled"`
+	Topic   string `mapstructure:"topic"`
+	Enabled bool   `mapstructure:"enabled"`
 }
 
 func main() {
@@ -58,7 +57,7 @@ func main() {
 	collectors = make(map[string]*collector.DataCollector)
 	for _, config := range collectorConfig {
 		if config.Enabled {
-			collector := collector.StartCollector(client, config.Topic, config.TickInterval)
+			collector := collector.StartCollector(client, config.Topic)
 			collectors[config.Topic] = collector
 		}
 	}
