@@ -1,17 +1,21 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
 	"strings"
 	"time"
 
 	mqtt "github.com/eclipse/paho.mqtt.golang"
+	"github.com/labstack/echo"
+	"github.com/labstack/echo/middleware"
+	"github.com/labstack/gommon/random"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-
-	"github.com/gin-gonic/gin"
 
 	"github.com/mindworks-software/energia/pkg/collector"
 )
@@ -57,40 +61,60 @@ func main() {
 	collectors = make(map[string]*collector.DataCollector)
 	for _, config := range collectorConfig {
 		if config.Enabled {
-			collector := collector.StartCollector(client, config.Topic)
-			collectors[config.Topic] = collector
+			c := collector.StartCollector(client, config.Topic)
+			collectors[config.Topic] = c
 		}
 	}
 
-	router := gin.Default()
+	web := echo.New()
 
-	router.GET("/", home)
-	router.Static("/dash", "./dash")
-	router.GET("/collectors", collectorList)
+	// Middleware
+	web.Use(middleware.Logger())
+	web.Use(middleware.Recover())
 
-	//	router.GET("/emon/:systemname/:topic", minuteAvgHandler)
-	//	router.GET("/emon/:systemname/:topic/last", current)
+	web.GET("/", home)
+	web.Static("/dash", "./dash")
+	web.GET("/collectors", collectorList)
 
-	router.GET("/emon/:systemname/:topic/:subtopic", minuteAvgHandler)
-	router.GET("/emon/:systemname/:topic/:subtopic/*action", current)
+	web.GET("/emon/:systemname/:topic", minuteAvgHandler)
+	web.GET("/emon/:systemname/:topic/last", current)
 
-	router.Run(":9090")
+	web.GET("/emon/:systemname/:topic/:subtopic", minuteAvgHandler)
+	web.GET("/emon/:systemname/:topic/:subtopic/*action", current)
+
+	// Start server
+	go func() {
+		if err := web.Start(":9090"); err != nil {
+			web.Logger.Info("shutting down the server")
+		}
+	}()
+
+	// Wait for interrupt signal to gracefully shutdown the server with
+	// a timeout of 10 seconds.
+	quit := make(chan os.Signal)
+	signal.Notify(quit, os.Interrupt)
+	<-quit
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	if err := web.Shutdown(ctx); err != nil {
+		web.Logger.Fatal(err)
+	}
 }
 
-func collectorList(c *gin.Context) {
+func collectorList(c echo.Context) error {
 	topics := make([]string, 0)
 
-	for k, _ := range collectors {
+	for k := range collectors {
 		topics = append(topics, k)
 	}
 
-	c.JSON(http.StatusOK, topics)
+	return c.JSON(http.StatusOK, topics)
 }
 
-func home(c *gin.Context) {
+func home(c echo.Context) error {
 	var links string
 
-	for k, _ := range collectors {
+	for k := range collectors {
 		link := fmt.Sprintf("<a href=%s>%s</a><br>", k, k)
 		links += link
 		link = fmt.Sprintf("<a href=%s/last>%s/last</a><br>", k, k)
@@ -101,18 +125,18 @@ func home(c *gin.Context) {
 		links += link
 	}
 
-	c.Data(http.StatusOK, "text/html", []byte(links))
+	return c.HTML(http.StatusOK, links)
 
 }
 
-func minuteAvgHandler(c *gin.Context) {
+func minuteAvgHandler(c echo.Context) error {
 	var vals []collector.TimeValue
 	var err error
 
-	topic := c.Request.URL.Path[1:]
+	topic := c.Request().URL.Path[1:]
 	dc := collectors[topic]
-	st := c.Query("startTime")
-	et := c.Query("endTime")
+	st := c.QueryParam("startTime")
+	et := c.QueryParam("endTime")
 
 	if st != "" && et != "" {
 		vals, err = dc.GetData(st, et)
@@ -122,13 +146,13 @@ func minuteAvgHandler(c *gin.Context) {
 	}
 
 	if err != nil {
-		c.AbortWithError(http.StatusInternalServerError, err)
+		return err
 	}
 
-	c.JSON(http.StatusOK, vals)
+	return c.JSON(http.StatusOK, vals)
 }
 
-func current(c *gin.Context) {
+func current(c echo.Context) error {
 	topic := fmt.Sprintf("emon/%s/%s", c.Param("systemname"), c.Param("topic"))
 	if c.Param("subtopic") != "" {
 		topic += fmt.Sprintf("/%s", c.Param("subtopic"))
@@ -138,16 +162,18 @@ func current(c *gin.Context) {
 	dc := collectors[topic]
 	val := dc.GetCurrent()
 
-	c.JSON(http.StatusOK, val)
+	return c.JSON(http.StatusOK, val)
 }
+
 func connectMQTT() (mqtt.Client, error) {
+	randClientId := mqttClientId + "_" + random.String(4)
 
 	clientOpts := mqtt.NewClientOptions()
 	clientOpts.AddBroker("tcp://" + mqttServer + ":" + strconv.Itoa(mqttPort))
 	clientOpts.SetAutoReconnect(true)
-	clientOpts.SetStore(mqtt.NewFileStore("/tmp/mqtt/" + mqttClientId))
+	clientOpts.SetStore(mqtt.NewFileStore("/tmp/mqtt/" + randClientId))
 	clientOpts.SetCleanSession(false)
-	clientOpts.SetClientID(mqttClientId)
+	clientOpts.SetClientID(randClientId)
 	clientOpts.SetOnConnectHandler(logConnect)
 	clientOpts.SetConnectionLostHandler(logConnectionLost)
 	clientOpts.SetUsername(mqttUsername)
