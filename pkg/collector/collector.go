@@ -231,12 +231,15 @@ func startTicker(mqc mqtt.Client, topic string) *time.Ticker {
 }
 
 func handleDataMessage(_ mqtt.Client, msg mqtt.Message) {
-
+	fmt.Printf("Received message: %v", msg)
 	dc := dcMap[msg.Topic()]
 
 	if dc != nil {
 		v, err := strconv.ParseFloat(string(msg.Payload()), 64)
-		if err == nil {
+		if err != nil {
+			fmt.Println("Error parsing value: ", err)
+		} else {
+			fmt.Println("Received value: ", v)
 			dc.buffer = append(dc.buffer, v)
 
 		}
