@@ -5,7 +5,7 @@
     <title>Dashboard Im and index</title>
     <!-- Load plotly.js into the DOM -->
     <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
-<script src="https://cdn.jsdelivr.net/npm/tasktimer@3.0.0/lib/tasktimer.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/tasktimer@3.0.0/lib/tasktimer.min.js"></script>
 
 </head>
 <body>
@@ -14,95 +14,130 @@
 <button id="button">Refresh</button>
 
 
+<div id="myGaugeDiv"></div>
 <div id="myDiv"></div>
 
 <script>
- const { TaskTimer } = tasktimer;
-	const timer = new TaskTimer(10000);
-timer.on('tick', () => {
-	console.log(`Tick count: ${timer.tickCount}`); 
-	loadPage()
-});
-timer.start();
+    const {TaskTimer} = tasktimer;
 
-
-	loadPage()
-    document.getElementById('button').addEventListener('click', loadPage );
-
-function loadPage(){
-	console.log("Loading Page")
-    return loadCollectors()
-		.then((topics) => {
-
-
-        document.getElementById('div1').innerText = topics;
-        console.log('Got topics', topics)
-
-        let promisess = []
-
-        for (let t of topics) {
-            console.log(t)
-            promisess.push(loadData(t));
-        }
-
-        Promise.all(promisess).then((results) => {
-            console.log("Results", results)
-
-            let data = [];
-
-            for (let r of results) {
-
-                console.log(r)
-
-                let x = [];
-                let y = [];
-                for (var timeValue of r[1]) {
-                    x.push(timeValue.Time);
-                    y.push(timeValue.Value);
-                }
-
-
-                var trace = {
-                    x: x,
-                    y: y,
-                    mode: 'lines',
-		    name: r[0],
-			line: {
-			dash: 'solid',
-				width: 4
-			}
-                }
-                data.push(trace)
-            }
-            console.log(trace)
-
-            var layout = {
-                title: 'Load vs PV',
-                xaxis: {
-                    // xaxisrange: [0.75, 5.25],
-                    autorange: true
-                },
-                yaxis: {
-                    // range: [0, 18.5],
-                    autorange: true
-                },
-                legend: {
-                    y: 0.5,
-                    traceorder: 'reversed',
-                    font: {
-                        size: 16
-                    }
-                }
-            };
-
-            Plotly.newPlot('myDiv', data, layout);
-
-        });
+    const timer = new TaskTimer(10000);
+    timer.on('tick', () => {
+        console.log(`Tick count: ${timer.tickCount}`);
+        loadGraph()
     });
+    timer.start();
+
+    const gaugeTimer = new TaskTimer(1000);
+    gaugeTimer.on('tick', () => {
+        console.log(`Tick gt count: ${gaugeTimer.tickCount}`);
+        loadGauge()
+    });
+    gaugeTimer.start();
 
 
+    loadGraph()
+    document.getElementById('button').addEventListener('click', loadGraph);
 
-}
+    function loadGraph() {
+        console.log("Loading Graph")
+        return loadCollectors()
+            .then((topics) => {
+
+
+                console.log('Got topics', topics)
+
+                let promisess = []
+
+                topics = topics.sort();
+
+                for (let t of topics) {
+                    console.log(t)
+                    promisess.push(loadData(t));
+                }
+
+                Promise.all(promisess).then((results) => {
+                    console.log("Results", results)
+
+                    let data = [];
+
+                    for (let r of results) {
+
+                        console.log(r)
+
+                        let x = [];
+                        let y = [];
+                        for (var timeValue of r[1]) {
+                            x.push(timeValue.Time);
+                            y.push(timeValue.Value);
+                        }
+
+
+                        var trace = {
+                            x: x,
+                            y: y,
+                            mode: 'lines',
+                            name: r[0],
+                            line: {
+                                dash: 'solid',
+                                width: 4
+                            }
+                        }
+                        data.push(trace)
+                    }
+                    console.log(trace)
+
+                    var layout = {
+                        title: 'Load vs PV',
+                        xaxis: {
+                            // xaxisrange: [0.75, 5.25],
+                            autorange: true
+                        },
+                        yaxis: {
+                            // range: [0, 18.5],
+                            autorange: true
+                        },
+                        legend: {
+                            y: 0.5,
+                            // traceorder: 'reversed',
+                            font: {
+                                size: 16
+                            }
+                        }
+                    };
+
+                    Plotly.newPlot('myDiv', data, layout);
+
+                });
+            });
+
+
+    }
+
+    function loadGauge() {
+        return loadCollectors()
+            .then((topics) => {
+                    let topic = topics.sort().pop();
+                    loadCurrent().then((v) => {
+                        var data = [
+                            {
+                                domain: { x: [0, 1], y: [0, 1] },
+                                value: v[1],
+                                title: { text: v[0] },
+                                type: "indicator",
+                                mode: "gauge+number",
+                                delta: { reference: 400 },
+                                gauge: { axis: { range: [null, 5000] } }
+                            }
+                        ];
+
+                        var layout = { width: 300, height: 200 };
+                        Plotly.newPlot('myGaugeDiv', data, layout);
+                    })
+
+                }
+            );
+    }
+
 
     function loadCollectors() {
         return fetch('/collectors')
@@ -121,15 +156,26 @@ function loadPage(){
         return fetch("/" + topic)
             .then((response) => {
                 const data = response.json();
-			topicName=topic.split('/').pop();
-			return Promise.all([Promise.resolve(topicName),data]);
+                topicName = topic.split('/').pop();
+                return Promise.all([Promise.resolve(topicName), data]);
             })
             .catch((err) => {
                 console.error('Error getting data from network', err);
                 return null;
             });
     }
-
+    function loadCurrent(topic) {
+        return fetch("/" + topic+"/current")
+            .then((response) => {
+                const data = response.text();
+                topicName = topic.split('/').pop();
+                return Promise.all([Promise.resolve(topicName), data]);
+            })
+            .catch((err) => {
+                console.error('Error getting current value from network', err);
+                return null;
+            });
+    }
 </script>
 </body>
 </html>

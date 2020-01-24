@@ -78,7 +78,7 @@ func main() {
 	web.GET("/collectors", collectorList)
 
 	web.GET("/emon/:systemname/:topic", minuteAvgHandler)
-	web.GET("/emon/:systemname/:topic/last", current)
+	web.GET("/emon/:systemname/:topic/current", current)
 
 	web.GET("/emon/:systemname/:topic/:subtopic", minuteAvgHandler)
 	web.GET("/emon/:systemname/:topic/:subtopic/*action", current)
@@ -119,7 +119,7 @@ func home(c echo.Context) error {
 	for k := range collectors {
 		link := fmt.Sprintf("<a href=%s>%s</a><br>", k, k)
 		links += link
-		link = fmt.Sprintf("<a href=%s/last>%s/last</a><br>", k, k)
+		link = fmt.Sprintf("<a href=%s/last>%s/current</a><br>", k, k)
 		links += link
 		st := time.Now().Add(-1 * time.Hour).Format("15:04")
 		et := time.Now().Add(1 * time.Minute).Format("15:04")
