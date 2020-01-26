@@ -1,181 +1,463 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>Dashboard Im and index</title>
+    <title>Energia - Axpert Dashboard</title>
     <!-- Load plotly.js into the DOM -->
     <script src='https://cdn.plot.ly/plotly-latest.min.js'></script>
     <script src="https://cdn.jsdelivr.net/npm/tasktimer@3.0.0/lib/tasktimer.min.js"></script>
+    <script src='gauge.min.js'></script>
+    <style>
+        .flex-container {
+            display: flex;
+            flex-wrap: nowrap;
+            background-color: DodgerBlue;
+        }
 
+        .flex-container>div {
+
+            background-color: lavender;
+            width: 50%;
+            margin: 5px;
+            text-align: center;
+            line-height: 75px;
+            font-size: 30px;
+        }
+    </style>
 </head>
+
 <body>
-<div id="div1" hidden="true"></div>
-
-<button id="button">Refresh</button>
+    <div id="div1" hidden="true"></div>
 
 
-<div id="myGaugeDiv"></div>
-<div id="myDiv"></div>
+    <div id="GridContainer" class="flex-container">
+        <div id="myGaugeDiv2" allign="left"></div>
+        <div id="myGaugeDiv3" allign="center"></div>
+        <div id="myGaugeDiv11" allign="right"></div>
+    </div>
 
-<script>
-    const {TaskTimer} = tasktimer;
+    <div id="LoadContainer" class="flex-container">
+        <div id="myGaugeDiv0" allign="left"></div>
+        <div id="myGaugeDiv1" allign="center"></div>
+        <div id="myGaugeDiv6" allign="right"></div>
+    </div>
+    <div id="LoadContainer" class="flex-container">
+        <div id="myGaugeDiv4" allign="left"></div>
+        <div id="myGaugeDiv5" allign="center"></div>
+        <div id="myGaugeDiv12" allign="right"></div>
+    </div>
+    <div id="LoadContainer" class="flex-container">
+        <div id="myGaugeDiv7" allign="left"></div>
+        <div id="myGaugeDiv10" allign="center"></div>
+        <div id="myGaugeDivX" allign="right"></div>
+    </div>
+    <div id="LoadContainer" class="flex-container">
+        <div id="myGaugeDiv9" allign="left"></div>
+        <div id="myGaugeDiv8" allign="center"></div>
+        <div id="myGaugeDivX" allign="right"></div>
+    </div>
+    <div id="myGaugeContainer" class="flex-container">
 
-    const timer = new TaskTimer(10000);
-    timer.on('tick', () => {
-        console.log(`Tick count: ${timer.tickCount}`);
-        loadGraph()
-    });
-    timer.start();
-
-    const gaugeTimer = new TaskTimer(1000);
-    gaugeTimer.on('tick', () => {
-        console.log(`Tick gt count: ${gaugeTimer.tickCount}`);
-        loadGauge()
-    });
-    gaugeTimer.start();
-
-
-    loadGraph()
-    document.getElementById('button').addEventListener('click', loadGraph);
-
-    function loadGraph() {
-        console.log("Loading Graph")
-        return loadCollectors()
-            .then((topics) => {
+    </div>
+    <!--
+<div id="myGaugeContainer" class="flex-container" hidden="true">
+<canvas id="gauge"></canvas>
+<canvas id="foo" allign="right"></canvas>
+</div>
+-->
+    <br>
+    <button id="button">Refresh</button>
+    <div id="myDiv"></div>
+    <script>
+        console.log('first script block has spoken')
 
 
-                console.log('Got topics', topics)
 
-                let promisess = []
-
-                topics = topics.sort();
-
-                for (let t of topics) {
-                    console.log(t)
-                    promisess.push(loadData(t));
+        var gauge = new RadialGauge({
+            renderTo: 'gauge',
+            width: 250,
+            height: 250,
+            units: "W",
+            value: 350,
+            minValue: 0,
+            startAngle: 90,
+            ticksAngle: 180,
+            valueBox: true,
+            maxValue: 5000,
+            majorTicks: [
+                "0",
+                "1000",
+                "2000",
+                "3000",
+                "4000",
+                "5000",
+            ],
+            minorTicks: 2,
+            strokeTicks: true,
+            highlights: [
+                {
+                    "from": 1000,
+                    "to": 5000,
+                    "color": "rgba(100, 255, 100, .2)"
+                },
+                {
+                    "from": 300,
+                    "to": 1000,
+                    "color": "rgba(220, 200, 0, .75)"
+                },
+                {
+                    "from": 0,
+                    "to": 300,
+                    "color": "rgba(200, 50, 50, .75)"
                 }
-
-                Promise.all(promisess).then((results) => {
-                    console.log("Results", results)
-
-                    let data = [];
-
-                    for (let r of results) {
-
-                        console.log(r)
-
-                        let x = [];
-                        let y = [];
-                        for (var timeValue of r[1]) {
-                            x.push(timeValue.Time);
-                            y.push(timeValue.Value);
-                        }
+            ],
+            colorPlate: "#fff",
+            borderShadowWidth: 0,
+            borders: false,
+            needleType: "arrow",
+            needleWidth: 5,
+            needleCircleSize: 2,
+            needleCircleOuter: true,
+            needleCircleInner: false,
+            animationDuration: 1500,
+            animationRule: "linear"
+        }).draw();
 
 
-                        var trace = {
-                            x: x,
-                            y: y,
-                            mode: 'lines',
-                            name: r[0],
-                            line: {
-                                dash: 'solid',
-                                width: 4
-                            }
-                        }
-                        data.push(trace)
+
+        document.addEventListener('DOMContentLoaded', function () {
+            // your code here
+            setInterval(function () {
+                loadGaugeData(2).then((v) => {
+                    console.log('got value', v)
+                    gauge.value = v
+                })
+            }, gauge.animationSpeed + 100);
+        }, false);
+
+        function loadGaugeData(index) {
+            return loadCollectors()
+                .then((topics) => {
+                    let topic = topics[index];
+                    console.log('lastTopic', topic)
+                    return loadCurrent(topic)
+                        .then((v) => {
+                            let currentValue = v[1]
+                            console.log('Current value', currentValue)
+                            return currentValue;
+                        })
+                })
+        }
+    </script>
+    <script>
+        const graphType = {
+            SUPPLY_FREQUENCY: 'supply frequency',
+            SUPPLY_VOLTAGE: 'supply voltage',
+            LOAD_WATTAGE: 'Load Wattage',
+            PV_WATTAGE: 'PV Wattage',
+            PV_VOLTAGE: 'PV voltage',
+            PV_CURRENT: 'PV current',
+            BATTERY_PERCENTAGE: 'Battery Percentage',
+            PERCENTAGE: 'Percentage',
+
+        }
+        const { TaskTimer } = tasktimer;
+
+        const timer = new TaskTimer(60000);
+        timer.on('tick', () => {
+            console.log(`Tick count: ${timer.tickCount}`);
+            loadGraph()
+        });
+        timer.start();
+
+        const gaugeTimer = new TaskTimer(250);
+        gaugeTimer.on('tick', () => {
+            console.log(`Tick gt count: ${gaugeTimer.tickCount}`);
+            loadGauge(0, graphType.SUPPLY_FREQUENCY)
+            loadGauge(1, graphType.SUPPLY_VOLTAGE)
+            loadGauge(11, graphType.PERCENTAGE)
+            loadGauge(6, graphType.LOAD_WATTAGE)
+            loadGauge(2, graphType.SUPPLY_FREQUENCY)
+            loadGauge(3, graphType.SUPPLY_VOLTAGE)
+            loadGauge(4, graphType.PV_CURRENT)
+            loadGauge(5, graphType.PV_VOLTAGE)
+            loadGauge(12, graphType.PV_WATTAGE)
+            loadGauge(10, graphType.PERCENTAGE)
+            loadGauge(7, graphType.BATTERY_PERCENTAGE)
+            loadGauge(8, graphType.PERCENTAGE)
+            loadGauge(9, graphType.BATTERY_PERCENTAGE)
+        });
+        gaugeTimer.start();
+
+
+        loadGraph()
+        document.getElementById('button').addEventListener('click', loadGraph);
+        loadGauge(0, graphType.SUPPLY_FREQUENCY)
+        loadGauge(1, graphType.SUPPLY_VOLTAGE)
+        loadGauge(11, graphType.PERCENTAGE)
+        loadGauge(6, graphType.LOAD_WATTAGE)
+        loadGauge(2, graphType.SUPPLY_FREQUENCY)
+        loadGauge(3, graphType.SUPPLY_VOLTAGE)
+        loadGauge(4, graphType.PV_CURRENT)
+        loadGauge(5, graphType.PV_VOLTAGE)
+        loadGauge(12, graphType.PV_WATTAGE)
+        loadGauge(10, graphType.PERCENTAGE)
+        loadGauge(7, graphType.BATTERY_PERCENTAGE)
+        loadGauge(8, graphType.PERCENTAGE)
+        loadGauge(9, graphType.BATTERY_PERCENTAGE)
+
+        function loadGraph() {
+            console.log("Loading Graph")
+            return loadCollectors()
+                .then((topics) => {
+
+
+                    console.log('Got topics', topics)
+
+                    let promisess = []
+
+                    topics = topics.sort();
+
+                    for (let t of topics) {
+                        console.log(t)
+                        promisess.push(loadData(t));
                     }
-                    console.log(trace)
 
-                    var layout = {
-                        title: 'Load vs PV',
-                        xaxis: {
-                            // xaxisrange: [0.75, 5.25],
-                            autorange: true
-                        },
-                        yaxis: {
-                            // range: [0, 18.5],
-                            autorange: true
-                        },
-                        legend: {
-                            y: 0.5,
-                            // traceorder: 'reversed',
-                            font: {
-                                size: 16
+                    Promise.all(promisess).then((results) => {
+                        console.log("Results", results)
+
+                        let data = [];
+
+                        for (let r of results) {
+
+                            console.log(r)
+
+                            let x = [];
+                            let y = [];
+                            for (var timeValue of r[1]) {
+                                x.push(timeValue.Time);
+                                y.push(timeValue.Value);
                             }
+
+
+                            var trace = {
+                                x: x,
+                                y: y,
+                                mode: 'lines',
+                                name: r[0],
+                                line: {
+                                    dash: 'solid',
+                                    width: 4
+                                }
+                            }
+                            data.push(trace)
                         }
-                    };
+                        console.log(trace)
 
-                    Plotly.newPlot('myDiv', data, layout);
-
-                });
-            });
-
-
-    }
-
-    function loadGauge() {
-        return loadCollectors()
-            .then((topics) => {
-                    let topic = topics.sort().pop();
-                    loadCurrent().then((v) => {
-                        var data = [
-                            {
-                                domain: { x: [0, 1], y: [0, 1] },
-                                value: v[1],
-                                title: { text: v[0] },
-                                type: "indicator",
-                                mode: "gauge+number",
-                                delta: { reference: 400 },
-                                gauge: { axis: { range: [null, 5000] } }
+                        var layout = {
+                            title: 'Load vs PV',
+                            uirevision: 'true',
+                            xaxis: {
+                                // xaxisrange: [0.75, 5.25],
+                                autorange: true
+                            },
+                            yaxis: {
+                                // range: [0, 18.5],
+                                autorange: true
+                            },
+                            legend: {
+                                y: 1.12, x: 0.2, xanchor: 'right', yanchor: 'middle',
+                                // traceorder: 'reversed',
+                                font: {
+                                    size: 9
+                                }
                             }
-                        ];
+                        };
 
-                        var layout = { width: 300, height: 200 };
-                        Plotly.newPlot('myGaugeDiv', data, layout);
+                        Plotly.newPlot('myDiv', data, layout, { responsive: true });
+
+                    });
+                });
+
+
+        }
+
+        function loadGauge(index, type) {
+            return loadCollectors()
+                .then((topics) => {
+                    let topic = topics.sort()[index];
+                    console.log('lastTopic', topic)
+                    loadCurrent(topic).then((v) => {
+                        let steps
+                        let data
+                        switch (type) {
+                            case graphType.SUPPLY_FREQUENCY: // frequency range
+                                steps = [
+                                    { range: [0, 20], color: "#f99c94" },
+                                    { range: [45, 55], color: "#87D37C" },
+                                    { range: [80, 100], color: "#F7CA18" }
+                                ]
+                                data = makeGauge(v, steps, 0, 100, "Hz")
+                                break;
+                            case graphType.SUPPLY_VOLTAGE: //Voltage suply range
+                                steps = [
+                                    { range: [0, 202], color: "#f99c94" },
+                                    { range: [207, 253], color: "#87D37C" },
+                                    { range: [255, 500], color: "#f99c94" }
+                                ]
+                                data = makeGauge(v, steps, 0, 500,"V")
+                                // data = makeVoltageGauge(v)
+                                break;
+
+                            case graphType.LOAD_WATTAGE: // Load Wattage
+                                steps = [
+                                    { range: [0, 810], color: "#87D37C" },
+                                    { range: [820, 1250], color: "#F7CA18" },
+                                    { range: [1251, 5000], color: "#f99c94" }
+                                ]
+                                data = makeGauge(v, steps, 0, 5000,"W")
+                                // data = makeWattageGauge(v)
+                                break;
+
+                            case graphType.PV_WATTAGE: // PV Wattage
+                                steps = [
+                                    { range: [0, 810], color: "#f99c94" },
+                                    { range: [820, 1250], color: "#F7CA18" },
+                                    { range: [1251, 5000], color: "#87D37C" }
+                                ]
+                                data = makeGauge(v, steps, 0, 5000,"W")
+                                // data = makeWattageGauge(v)
+                                break;
+                            case graphType.PV_VOLTAGE: //PV Voltage range
+                                steps = [
+                                    { range: [0, 58], color: "#f99c94" },
+                                    { range: [60, 108], color: "#87D37C" },
+                                    { range: [110, 140], color: "#f99c94" }
+                                ]
+                                data = makeGauge(v, steps, 0, 140,"V")
+                                // data = makeVoltageGauge(v)
+                                break;
+                            case graphType.PV_CURRENT: //PV Current range
+                                steps = [
+                                    { range: [0, 5], color: "#f99c94" },
+                                    { range: [10, 54], color: "#87D37C" },
+                                    { range: [55, 60], color: "#f99c94" }
+                                ]
+                                data = makeGauge(v, steps, 0, 60,"A")
+                                // data = makeVoltageGauge(v)
+                                break;
+
+                            case graphType.BATTERY_PERCENTAGE: //LedAcid Battery Percentage
+                                steps = [
+                                    { range: [0, 50], color: "#f99c94" },
+                                    { range: [52, 70], color: "#F7CA18" },
+                                    { range: [72, 100], color: "#87D37C" }
+                                ]
+                                data = makeGauge(v, steps, 0, 100, "%")
+                                // data = makeVoltageGauge(v)
+                                break;
+
+                            case graphType.PERCENTAGE: //General Percentage
+                                steps = [
+                                    { range: [0, 33], color: "#87D37C" },
+                                    { range: [35, 70], color: "#F7CA18" },
+                                    { range: [72, 100], color: "#f99c94" }
+                                ]
+                                data = makeGauge(v, steps, 0, 100,"%")
+                                // data = makeVoltageGauge(v)
+                                break;
+
+
+                        }
+
+
+
+                        let layout = {
+                            width: 250,
+                            height: 150,
+                            margin: { t: 40, r: 25, l: 25, b: 25 },
+                            paper_bgcolor: "lavender",
+                            font: { color: "darkblue", family: "Arial" }
+                        };
+
+                        Plotly.newPlot('myGaugeDiv' + index, data, layout);
                     })
 
                 }
-            );
-    }
+                );
+        }
 
 
-    function loadCollectors() {
-        return fetch('/collectors')
-            .then((response) => {
-                const collectors = response.json();
-                // console.log('Got devices', collectors)
-                return collectors;
-            })
-            .catch((err) => {
-                console.error('Error getting data from network', err);
-                return null;
-            });
-    }
 
-    function loadData(topic) {
-        return fetch("/" + topic)
-            .then((response) => {
-                const data = response.json();
-                topicName = topic.split('/').pop();
-                return Promise.all([Promise.resolve(topicName), data]);
-            })
-            .catch((err) => {
-                console.error('Error getting data from network', err);
-                return null;
-            });
-    }
-    function loadCurrent(topic) {
-        return fetch("/" + topic+"/current")
-            .then((response) => {
-                const data = response.text();
-                topicName = topic.split('/').pop();
-                return Promise.all([Promise.resolve(topicName), data]);
-            })
-            .catch((err) => {
-                console.error('Error getting current value from network', err);
-                return null;
-            });
-    }
-</script>
+        function makeGauge(v, steps, min, max, prefix) {
+
+            let data = [
+                {
+                    type: "indicator",
+                    mode: "gauge+number+delta",
+                    value: v[1],
+                    number: { prefix: prefix + " "},
+                    title: { text: v[0], font: { size: 12 } },
+                    delta: { reference: 0, increasing: { color: "RebeccaPurple" } },
+                    gauge: {
+                        axis: { range: [null, max], tickwidth: 1, tickcolor: "gray" },
+                        bar: { color: "gray" },
+                        bgcolor: "lightgray",
+                        borderwidth: 2,
+                        bordercolor: "gray",
+                        steps: steps,
+                        threshold: {
+                            line: { color: "green", width: 2 },
+                            thickness: 0.75,
+                            value: max - 2
+                        }
+                    }
+                }
+            ];
+
+
+            return data;
+
+        }
+        function loadCollectors() {
+            return fetch('/collectors')
+                .then((response) => {
+                    const collectors = response.json();
+                    // console.log('Got devices', collectors)
+                    return collectors;
+                })
+                .catch((err) => {
+                    console.error('Error getting data from network', err);
+                    return null;
+                });
+        }
+
+        function loadData(topic) {
+            return fetch("/" + topic)
+                .then((response) => {
+                    const data = response.json();
+                    topicName = topic.split('/').pop();
+                    return Promise.all([Promise.resolve(topicName), data]);
+                })
+                .catch((err) => {
+                    console.error('Error getting data from network', err);
+                    return null;
+                });
+        }
+        function loadCurrent(topic) {
+            return fetch("/" + topic + "/current")
+                .then((response) => {
+                    const data = response.text();
+                    topicName = topic.split('/').pop();
+                    return Promise.all([Promise.resolve(topicName), data]);
+                })
+                .catch((err) => {
+                    console.error('Error getting current value from network', err);
+                    return null;
+                });
+        }
+    </script>
 </body>
+
 </html>
