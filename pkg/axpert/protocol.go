@@ -998,7 +998,7 @@ func parseDeviceFlags(resp string) (map[DeviceFlag]FlagStatus, error) {
 			case 'D':
 				value = FlagDisabled
 			default:
-				return nil, fmt.Errorf("unknown flag %c", resp[i])
+				fmt.Printf("WARNING: unknown flag %v\n", resp[i])
 			}
 		}
 	}
